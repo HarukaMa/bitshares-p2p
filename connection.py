@@ -3,7 +3,7 @@ import threading
 from hashlib import sha256, sha512
 from struct import pack, unpack
 
-import citycrc
+import cityhash
 from Crypto.Cipher import AES
 from graphenebase import PublicKey, PrivateKey, ecdsa
 
@@ -45,8 +45,9 @@ class Connection:
         raw_data = x.to_bytes(32, "big")
         self.shared_secret = sha512(raw_data).digest()
         key = sha256(self.shared_secret).digest()
-        crc = citycrc.CityHashCrc128(self.shared_secret, len(self.shared_secret))
-        iv = pack("<Q", crc[0]) + pack("<Q", crc[1])
+        crc = cityhash.CityHash128(self.shared_secret)
+        data = crc.to_bytes(16, "little")
+        iv = data[8:16] + data[:8]
         self.s.sendall(bytes.fromhex(repr(sk.pubkey)))
         self.encryptor = AES.new(key, AES.MODE_CBC, iv)
         self.test = AES.new(key, AES.MODE_CBC, iv)
@@ -93,7 +94,7 @@ class Connection:
         while True:
             data.extend(self.s.recv(65536))
             if len(data) % 16 == 0:
-                msg = self.decryptor.decrypt(data)
+                msg = self.decryptor.decrypt(bytes(data))
             else:
                 continue
             data = bytearray()
