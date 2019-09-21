@@ -1,3 +1,4 @@
+import datetime
 from collections import OrderedDict
 from hashlib import sha256
 from pprint import pprint
@@ -55,6 +56,14 @@ message_definition_table = {
     5010: {
         "addresses": ["address"]
     },
+    5012: {
+        "request_sent_time": "uint64"
+    },
+    5013: OrderedDict([
+        ("request_sent_time", "uint64"),
+        ("request_received_time", "uint64"),
+        ("reply_transmitted_time", "uint64"),
+    ]),
 }
 
 
@@ -69,7 +78,7 @@ def hello_respond(msg: dict, conn):
         conn.send(5007, {})
         conn.send(5009, {})
 
-def address_request_respond(msg: dict, conn):
+def address_request_respond(_, conn):
     conn.send(5010, {
         "addresses": [{'direction': 1,
                  'firewalled': 1,
@@ -79,9 +88,25 @@ def address_request_respond(msg: dict, conn):
                  'remote_endpoint': '87.117.52.158:11206'}]
     })
 
+def address_respond(_, conn):
+    now = datetime.datetime.utcnow()
+    conn.send(5012, {
+        "request_sent_time": int(now.timestamp() * 1000000)
+    })
+
+def time_request_respond(msg: dict, conn):
+    now = datetime.datetime.utcnow()
+    conn.send(5013, {
+        "request_sent_time": msg["request_sent_time"],
+        "request_received_time": int(now.timestamp() * 1000000),
+        "reply_transmitted_time": int(datetime.datetime.utcnow().timestamp() * 1000000)
+    })
+
 message_action_table = {
     5006: hello_respond,
     5009: address_request_respond,
+    5010: address_respond,
+    5012: time_request_respond,
 }
 
 def parse_message(msg: bytes, conn):

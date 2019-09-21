@@ -22,7 +22,7 @@ struct_definition_table = {
 
 def unpack_field(msg: bytes, type_: any):
     if type(type_) is list:
-        return unpack_vector(msg, type_)
+        return unpack_vector(msg, type_[0])
     unpacker = type_unpack_table.get(type_, None)
     if unpacker is not None:
         return unpacker(msg)
@@ -103,7 +103,7 @@ def unpack_vector(msg: bytes, type_):
     count = msg[0]
     msg = msg[1:]
     for _ in range(count):
-        value, msg = unpack_field(msg, type_[0])
+        value, msg = unpack_field(msg, type_)
         obj.append(value)
     return obj, msg
 
@@ -125,7 +125,7 @@ type_unpack_table = {
 
 def pack_field(msg: any, type_: any):
     if type(type_) is list:
-        return pack_vector(msg, type_)
+        return pack_vector(msg, type_[0])
     packer = type_pack_table.get(type_, None)
     if packer is not None:
         return packer(msg)
@@ -208,7 +208,7 @@ def pack_vector(msg: list, type_):
     res = bytearray()
     res.extend(pack_varint(len(msg)))
     for i in msg:
-        res.extend(pack_field(i, type_[0]))
+        res.extend(pack_field(i, type_))
     return res
 
 type_pack_table = {
