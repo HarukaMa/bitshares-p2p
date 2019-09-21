@@ -1,3 +1,4 @@
+import logging
 import re
 from struct import pack, unpack
 from collections import OrderedDict
@@ -18,6 +19,18 @@ struct_definition_table = {
         ("direction", "uint8"),
         ("firewalled", "uint8"),
     ]),
+    "signed_block": OrderedDict([
+        ("previous", "ripemd160"),
+        ("timestamp", "uint32"),
+        ("witness", "oid"),
+        ("transaction_merkle_root", "ripemd160"),
+        ("extensions", ["object"]),
+        ("witness_signature", "sig"),
+        ("transactions", ["transaction"]),
+    ]),
+    "transaction": OrderedDict([
+
+    ])
 }
 
 def unpack_field(msg: bytes, type_: any):
@@ -28,7 +41,7 @@ def unpack_field(msg: bytes, type_: any):
         return unpacker(msg)
     if type_ in struct_definition_table.keys():
         return unpack_struct(msg, type_)
-    print("Unknown value type", type_)
+    logging.error("Unknown value type", type_)
     return None, msg
 
 def unpack_struct(msg: bytes, type_):
@@ -87,28 +100,31 @@ def unpack_ripemd160(msg: bytes):
 
 def unpack_object(msg: bytes):
     obj = {}
-    # assuming count will not exceed 128
-    count = msg[0]
-    msg = msg[1:]
+    count, msg = unpack_varint(msg)
     for _ in range(count):
         key, msg = unpack_string(msg)
         type_ = user_data_type_table.get(msg[0], None)
         if type_ is None:
-            print("Unknown user data type", msg[0])
-            print(msg)
+            logging.error("Unknown user data type", msg[0])
+            logging.error(msg)
         value, msg = unpack_field(msg[1:], type_)
         obj[key] = value
     return obj, msg
 
 def unpack_vector(msg: bytes, type_):
     obj = []
-    # assuming count will not exceed 128
-    count = msg[0]
-    msg = msg[1:]
+    count, msg = unpack_varint(msg)
     for _ in range(count):
         value, msg = unpack_field(msg, type_)
         obj.append(value)
     return obj, msg
+
+def unpack_oid(msg: bytes):
+    data = unpack("<Q", msg[:8])[0]
+    space = (data & (0xff << 56)) >> 56
+    type_ = (data & (0xff << 48)) >> 48
+    id_ = data & 0xffffffffffff
+    return "%d.%d.%d" % (space, type_, id_), msg[8:]
 
 type_unpack_table = {
     "string": unpack_string,
@@ -125,6 +141,7 @@ type_unpack_table = {
     "ripemd160": unpack_ripemd160,
     "object": unpack_object,
     "vector": unpack_vector,
+    "oid": unpack_oid,
 }
 
 def pack_field(msg: any, type_: any):
@@ -135,7 +152,7 @@ def pack_field(msg: any, type_: any):
         return packer(msg)
     if type_ in struct_definition_table.keys():
         return pack_struct(msg, type_)
-    print("Unknown value type", type_)
+    logging.error("Unknown value type", type_)
     return None
 
 def pack_struct(msg: dict, type_):
@@ -193,6 +210,10 @@ def pack_signature(msg: bytes):
 def pack_sha256(msg: bytes):
     return msg
 
+def pack_ripemd160(msg: str):
+    # just use as id here
+    return bytes.fromhex(msg)
+
 def pack_object(msg: dict):
     res = bytearray()
     res.extend(pack_varint(len(msg)))
@@ -205,7 +226,7 @@ def pack_object(msg: dict):
             res.append(5)
             res.extend(pack_string(v))
         else:
-            print("Unknown user data type", type(v))
+            logging.error("Unknown user data type", type(v))
     return res
 
 def pack_vector(msg: list, type_):
@@ -227,6 +248,7 @@ type_pack_table = {
     "pubkey": pack_pubkey,
     "sig": pack_signature,
     "sha256": pack_sha256,
+    "ripemd160": pack_ripemd160,
     "object": pack_object,
     "vector": pack_vector,
 }

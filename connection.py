@@ -1,3 +1,4 @@
+import logging
 import socket
 import threading
 from hashlib import sha256, sha512
@@ -71,7 +72,7 @@ class Connection:
     def send(self, msg_type, data: dict):
         definition = message_definition_table.get(msg_type, None)
         if definition is None:
-            print("Unknown message type", msg_type)
+            logging.error("Unknown message type", msg_type)
             return
         res = bytearray()
         for name, type_ in definition.items():
@@ -85,7 +86,8 @@ class Connection:
         length = len(res)
         res = pack("<II", length, msg_type) + res
         data = self.encryptor.encrypt(res)
-        print("SEND >>>", res)
+        logging.debug("SEND >>> %s" % res)
+        logging.info("Send message")
         parse_message(res, None)
         self.s.sendall(data)
 
@@ -101,12 +103,13 @@ class Connection:
             self.stream.write(msg)
             if len(msg) == 0:
                 break
-            print("RECV <<<", msg)
+            logging.debug("RECV <<< %s" % msg)
             while self.stream.count():
                 size = unpack("<I", self.stream.peek(4))[0]
                 expect = size + 8 + (16 - (size + 8) % 16) % 16
-                print("expect", expect, "have", self.stream.count())
+                logging.debug("expect %s have %s" % (expect, self.stream.count()))
                 if expect <= self.stream.count():
+                    logging.info("Received message")
                     parse_message(self.stream.read(expect), self)
                 else:
                     break

@@ -1,7 +1,8 @@
 import datetime
+import logging
 from collections import OrderedDict
 from hashlib import sha256
-from pprint import pprint
+from pprint import pformat
 from struct import unpack
 
 from graphenebase import ecdsa, PublicKey
@@ -33,6 +34,10 @@ message_name_table = {
 }
 
 message_definition_table = {
+    1001: OrderedDict([
+        ("block", "signed_block"),
+        ("block_id", "ripemd160")
+    ]),
     5002: OrderedDict([
         ("total_remaining_item_count", "uint32"),
         ("item_type", "uint32"),
@@ -41,6 +46,10 @@ message_definition_table = {
     5003: OrderedDict([
         ("item_type", "uint32"),
         ("blockchain_synopsis", ["ripemd160"])
+    ]),
+    5004: OrderedDict([
+        ("item_type", "uint32"),
+        ("items_to_fetch", ["ripemd160"])
     ]),
     5006: OrderedDict([
         ("user_agent", "string"),
@@ -74,6 +83,12 @@ message_definition_table = {
         ("reply_transmitted_time", "uint64"),
     ]),
 }
+
+def item_id_inventory_respond(msg: dict, conn):
+    conn.send(5004, {
+        "item_type": msg["item_type"],
+        "items_to_fetch": [msg["item_hashes_available"][0]]
+    })
 
 def fetch_item_id_respond(_, conn):
     conn.send(5002, {
@@ -123,6 +138,7 @@ def time_request_respond(msg: dict, conn):
     })
 
 message_action_table = {
+    # 5002: item_id_inventory_respond,
     5003: fetch_item_id_respond,
     5006: hello_respond,
     5009: address_request_respond,
@@ -139,12 +155,12 @@ def parse_message(msg: bytes, conn):
         end = None
     msg = msg[8:end]
     if definition is None:
-        print("Unknown type of message:", msg_type, message_name_table.get(msg_type))
+        logging.warning("Unknown type of message:", msg_type, message_name_table.get(msg_type))
     else:
         result = {}
         for name, type_ in definition.items():
             result[name], msg = unpack_field(msg, type_)
-        pprint([message_name_table[msg_type], result])
+        logging.info(pformat([message_name_table[msg_type], result]), )
         action = message_action_table.get(msg_type, None)
         if action is not None and conn is not None:
             action(result, conn)
