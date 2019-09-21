@@ -4,7 +4,7 @@ from hashlib import sha256, sha512
 from struct import pack, unpack
 
 import cityhash
-from Crypto.Cipher import AES
+from Cryptodome.Cipher import AES
 from graphenebase import PublicKey, PrivateKey, ecdsa
 
 from .messages import parse_message, message_definition_table

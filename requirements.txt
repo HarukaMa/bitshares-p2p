@@ -1,3 +1,2 @@
-cityhash==0.2.3.post9
 graphenelib==1.1.20
-pycrypto==2.6.1
+cityhash==0.2.3.post9
