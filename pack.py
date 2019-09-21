@@ -1,5 +1,6 @@
 import re
 from struct import pack, unpack
+from collections import OrderedDict
 
 from graphenebase import PublicKey
 
@@ -8,13 +9,30 @@ user_data_type_table = {
     5: "string",
 }
 
-def unpack_field(type_: str, msg: bytes):
-    unpacker = type_unpack_table.get(type_, None)
-    if unpacker is None:
-        print("Unknown value type", type_)
-        return None, msg
-    value, length = unpacker(msg)
-    return value, msg[length:]
+struct_definition_table = {
+    "address": OrderedDict([
+        ("remote_endpoint", "ipendp"),
+        ("last_seen_time", "uint32"),
+        ("latency", "int64"),
+        ("node_id", "pubkey"),
+        ("direction", "uint8"),
+        ("firewalled", "uint8"),
+    ]),
+}
+
+def unpack_field(msg: bytes, type_: any):
+    if type(type_) is list:
+        return unpack_vector(msg, type_)
+    else:
+        unpacker = type_unpack_table.get(type_, None)
+        if unpacker is not None:
+            return unpacker(msg)
+        else:
+            if type_ in struct_definition_table.keys():
+                return unpack_struct(msg, type_)
+            else:
+                print("Unknown value type", type_)
+                return None, msg
 
 def unpack_varint(msg: bytes):
     value = 0
@@ -24,53 +42,73 @@ def unpack_varint(msg: bytes):
         if msg[i] & 0x80 != 0x80:
             break
         i += 1
-    return value, i + 1
+    return value, msg[i + 1:]
+
+def unpack_struct(msg: bytes, type_):
+    definition = struct_definition_table[type_]
+    result = {}
+    for name, type_ in definition.items():
+        result[name], msg = unpack_field(msg, type_)
+    return result, msg
 
 def unpack_string(msg: bytes):
-    length, consumed = unpack_varint(msg)
-    return (msg[consumed:consumed + length]).decode("utf8"), consumed + length
+    length, msg = unpack_varint(msg)
+    return (msg[:length]).decode("utf8"), msg[length:]
 
 def unpack_uint8(msg: bytes):
-    return msg[0], 1
+    return msg[0], msg[1:]
 
 def unpack_uint16(msg: bytes):
-    return unpack("<H", msg[:2])[0], 2
+    return unpack("<H", msg[:2])[0], msg[2:]
 
 def unpack_uint32(msg: bytes):
-    return unpack("<I", msg[:4])[0], 4
+    return unpack("<I", msg[:4])[0], msg[4:]
 
 def unpack_uint64(msg: bytes):
-    return unpack("<Q", msg[:8])[0], 8
+    return unpack("<Q", msg[:8])[0], msg[8:]
+
+def unpack_int64(msg: bytes):
+    return unpack("<q", msg[:8])[0], msg[8:]
 
 def unpack_ipaddr(msg: bytes):
-    return "%s.%s.%s.%s" % (msg[3], msg[2], msg[1], msg[0]), 4
+    return "%s.%s.%s.%s" % (msg[3], msg[2], msg[1], msg[0]), msg[4:]
 
 def unpack_ipendp(msg: bytes):
-    return "%s.%s.%s.%s:%s" % (msg[3], msg[2], msg[1], msg[0], unpack("<H", msg[4:6])[0]), 6
+    return "%s.%s.%s.%s:%s" % (msg[3], msg[2], msg[1], msg[0], unpack("<H", msg[4:6])[0]), msg[6:]
 
 def unpack_pubkey(msg: bytes):
-    return msg[:33].hex(), 33
+    return msg[:33].hex(), msg[33:]
 
 def unpack_signature(msg: bytes):
-    return msg[:65].hex(), 65
+    return msg[:65].hex(), msg[65:]
 
 def unpack_sha256(msg: bytes):
-    return msg[:32].hex(), 32
+    return msg[:32].hex(), msg[32:]
 
 def unpack_object(msg: bytes):
     obj = {}
+    # assuming count will not exceed 128
     count = msg[0]
     msg = msg[1:]
     for _ in range(count):
-        key, length = unpack_string(msg)
-        msg = msg[length:]
+        key, msg = unpack_string(msg)
         type_ = user_data_type_table.get(msg[0], None)
         if type_ is None:
             print("Unknown user data type", msg[0])
             print(msg)
-        value, msg = unpack_field(type_, msg[1:])
+        value, msg = unpack_field(msg[1:], type_)
         obj[key] = value
-    return obj, len(msg)
+    return obj, msg
+
+def unpack_vector(msg: bytes, type_):
+    obj = []
+    # assuming count will not exceed 128
+    count = msg[0]
+    msg = msg[1:]
+    for _ in range(count):
+        value, msg = unpack_field(msg, type_[0])
+        obj.append(value)
+    return obj, msg
 
 type_unpack_table = {
     "string": unpack_string,
@@ -78,12 +116,14 @@ type_unpack_table = {
     "uint16": unpack_uint16,
     "uint32": unpack_uint32,
     "uint64": unpack_uint64,
+    "int64": unpack_int64,
     "ipaddr": unpack_ipaddr,
     "ipendp": unpack_ipendp,
     "pubkey": unpack_pubkey,
     "sig": unpack_signature,
     "sha256": unpack_sha256,
     "object": unpack_object,
+    "vector": unpack_vector,
 }
 
 def pack_field(type_: str, msg: any):

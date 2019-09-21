@@ -53,7 +53,7 @@ message_definition_table = {
     ]),
     5009: {},
     5010: {
-        "addresses": "vector_address"
+        "addresses": ["address"]
     },
 }
 
@@ -87,7 +87,7 @@ def parse_message(msg: bytes, conn, no_action = False):
     else:
         result = {}
         for name, type_ in definition.items():
-            result[name], msg = unpack_field(type_, msg)
+            result[name], msg = unpack_field(msg, type_)
         pprint([message_name_table[msg_type], result])
         action = message_action_table.get(msg_type, None)
         if action is not None and not no_action:
