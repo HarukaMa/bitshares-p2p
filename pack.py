@@ -5,6 +5,8 @@ from collections import OrderedDict
 
 from graphenebase import PublicKey
 
+from .utils import Buffer
+
 user_data_type_table = {
     2: "uint64",
     5: "string",
@@ -22,7 +24,7 @@ struct_definition_table = {
     "signed_block": OrderedDict([
         ("previous", "ripemd160"),
         ("timestamp", "uint32"),
-        ("witness", "oid"),
+        ("witness", "witness_id"),
         ("transaction_merkle_root", "ripemd160"),
         ("extensions", ["object"]),
         ("witness_signature", "sig"),
@@ -33,7 +35,7 @@ struct_definition_table = {
     ])
 }
 
-def unpack_field(msg: bytes, type_: any):
+def unpack_field(msg: Buffer, type_: any):
     if type(type_) is list:
         return unpack_vector(msg, type_[0])
     unpacker = type_unpack_table.get(type_, None)
@@ -42,89 +44,90 @@ def unpack_field(msg: bytes, type_: any):
     if type_ in struct_definition_table.keys():
         return unpack_struct(msg, type_)
     logging.error("Unknown value type", type_)
-    return None, msg
+    return None
 
-def unpack_struct(msg: bytes, type_):
+def unpack_struct(msg: Buffer, type_):
     definition = struct_definition_table[type_]
     res = {}
     for name, type_ in definition.items():
-        res[name], msg = unpack_field(msg, type_)
-    return res, msg
+        res[name] = unpack_field(msg, type_)
+    return res
 
-def unpack_varint(msg: bytes):
+def unpack_varint(msg: Buffer):
     value = 0
     i = 0
     while True:
-        value += (msg[i] & 0x7f) << (i * 7)
-        if msg[i] & 0x80 != 0x80:
+        byte = ord(msg.read(1))
+        value += (byte & 0x7f) << (i * 7)
+        if byte & 0x80 != 0x80:
             break
         i += 1
-    return value, msg[i + 1:]
+    return value
 
-def unpack_string(msg: bytes):
-    length, msg = unpack_varint(msg)
-    return (msg[:length]).decode("utf8"), msg[length:]
+def unpack_string(msg: Buffer):
+    length = unpack_varint(msg)
+    return (msg.read(length)).decode("utf8")
 
-def unpack_uint8(msg: bytes):
-    return msg[0], msg[1:]
+def unpack_uint8(msg: Buffer):
+    return msg.read(1)
 
-def unpack_uint16(msg: bytes):
-    return unpack("<H", msg[:2])[0], msg[2:]
+def unpack_uint16(msg: Buffer):
+    return unpack("<H", msg.read(2))[0]
 
-def unpack_uint32(msg: bytes):
-    return unpack("<I", msg[:4])[0], msg[4:]
+def unpack_uint32(msg: Buffer):
+    return unpack("<I", msg.read(4))[0]
 
-def unpack_uint64(msg: bytes):
-    return unpack("<Q", msg[:8])[0], msg[8:]
+def unpack_uint64(msg: Buffer):
+    return unpack("<Q", msg.read(8))[0]
 
-def unpack_int64(msg: bytes):
-    return unpack("<q", msg[:8])[0], msg[8:]
+def unpack_int64(msg: Buffer):
+    return unpack("<q", msg.read(8))[0]
 
-def unpack_ipaddr(msg: bytes):
-    return "%s.%s.%s.%s" % (msg[3], msg[2], msg[1], msg[0]), msg[4:]
+def unpack_ipaddr(msg: Buffer):
+    data = msg.read(4)
+    return "%s.%s.%s.%s" % (data[3], data[2], data[1], data[0])
 
-def unpack_ipendp(msg: bytes):
-    return "%s.%s.%s.%s:%s" % (msg[3], msg[2], msg[1], msg[0], unpack("<H", msg[4:6])[0]), msg[6:]
+def unpack_ipendp(msg: Buffer):
+    data = msg.read(6)
+    return "%s.%s.%s.%s:%s" % (data[3], data[2], data[1], data[0], unpack("<H", data[4:6])[0])
 
-def unpack_pubkey(msg: bytes):
-    return msg[:33].hex(), msg[33:]
+def unpack_pubkey(msg: Buffer):
+    return msg.read(33).hex()
 
-def unpack_signature(msg: bytes):
-    return msg[:65].hex(), msg[65:]
+def unpack_signature(msg: Buffer):
+    return msg.read(65).hex()
 
-def unpack_sha256(msg: bytes):
-    return msg[:32].hex(), msg[32:]
+def unpack_sha256(msg: Buffer):
+    return msg.read(32).hex()
 
-def unpack_ripemd160(msg: bytes):
-    return msg[:20].hex(), msg[20:]
+def unpack_ripemd160(msg: Buffer):
+    return msg.read(20).hex()
 
-def unpack_object(msg: bytes):
+def unpack_object(msg: Buffer):
     obj = {}
-    count, msg = unpack_varint(msg)
+    count = unpack_varint(msg)
     for _ in range(count):
-        key, msg = unpack_string(msg)
-        type_ = user_data_type_table.get(msg[0], None)
+        key = unpack_string(msg)
+        byte = ord(msg.read(1))
+        type_ = user_data_type_table.get(byte, None)
         if type_ is None:
-            logging.error("Unknown user data type", msg[0])
+            logging.error("Unknown user data type", byte)
             logging.error(msg)
-        value, msg = unpack_field(msg[1:], type_)
+        value = unpack_field(msg, type_)
         obj[key] = value
-    return obj, msg
+    return obj
 
-def unpack_vector(msg: bytes, type_):
+def unpack_vector(msg: Buffer, type_):
     obj = []
-    count, msg = unpack_varint(msg)
+    count = unpack_varint(msg)
     for _ in range(count):
-        value, msg = unpack_field(msg, type_)
+        value = unpack_field(msg, type_)
         obj.append(value)
-    return obj, msg
+    return obj
 
-def unpack_oid(msg: bytes):
-    data = unpack("<Q", msg[:8])[0]
-    space = (data & (0xff << 56)) >> 56
-    type_ = (data & (0xff << 48)) >> 48
-    id_ = data & 0xffffffffffff
-    return "%d.%d.%d" % (space, type_, id_), msg[8:]
+# def unpack_oid(msg: bytes):
+#
+#     return "%d.%d.%d" % (space, type_, id_), msg[8:]
 
 type_unpack_table = {
     "string": unpack_string,
@@ -141,7 +144,7 @@ type_unpack_table = {
     "ripemd160": unpack_ripemd160,
     "object": unpack_object,
     "vector": unpack_vector,
-    "oid": unpack_oid,
+    # "witness_id": unpack_oid,
 }
 
 def pack_field(msg: any, type_: any):

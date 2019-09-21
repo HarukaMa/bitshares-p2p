@@ -10,32 +10,12 @@ from graphenebase import PublicKey, PrivateKey, ecdsa
 
 from .messages import parse_message, message_definition_table
 from .pack import pack_field
+from .utils import Buffer
 
 class Connection:
 
-    class Buffer:
-        def __init__(self):
-            self._buffer = bytearray()
-
-        def write(self, data: bytes):
-            self._buffer.extend(data)
-
-        def read(self, size: int):
-            data = self._buffer[:size]
-            self._buffer[:size] = b""
-            return data
-
-        def peek(self, size: int):
-            return self._buffer[:size]
-
-        def count(self):
-            return len(self._buffer)
-
-        def __len__(self):
-            return len(self._buffer)
-
     def __init__(self, ip, port):
-        self.stream = self.Buffer()
+        self.stream = Buffer()
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((ip, port))
         raw_pk = self.s.recv(33)

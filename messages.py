@@ -8,6 +8,7 @@ from struct import unpack
 from graphenebase import ecdsa, PublicKey
 
 from .pack import unpack_field
+from .utils import Buffer
 
 message_name_table = {
     1000: "trx_message_type",
@@ -154,12 +155,14 @@ def parse_message(msg: bytes, conn):
     if end == 0:
         end = None
     msg = msg[8:end]
+    buf = Buffer()
+    buf.write(msg)
     if definition is None:
         logging.warning("Unknown type of message:", msg_type, message_name_table.get(msg_type))
     else:
         result = {}
         for name, type_ in definition.items():
-            result[name], msg = unpack_field(msg, type_)
+            result[name] = unpack_field(buf, type_)
         logging.info(pformat([message_name_table[msg_type], result]), )
         action = message_action_table.get(msg_type, None)
         if action is not None and conn is not None:
