@@ -3,7 +3,7 @@ from hashlib import sha256
 from pprint import pprint
 from struct import unpack
 
-from graphenebase import ecdsa
+from graphenebase import ecdsa, PublicKey
 
 from .pack import unpack_field
 
@@ -40,7 +40,7 @@ message_definition_table = {
         ("outbound_port", "uint16"),
         ("node_public_key", "pubkey"),
         ("signed_shared_secret", "sig"),
-        ("chain_id_arg", "sha256"),
+        ("chain_id", "sha256"),
         ("user_data", "object"),
     ]),
     5007: {},
@@ -66,15 +66,25 @@ def hello_respond(msg: dict, conn):
           )
     res = bytes([3] if key.to_string()[63] % 2 == 1 else [2]) + key.to_string()[:32]
     if msg["node_public_key"] == res.hex():
-        conn.send(5007, [])
-        conn.send(5009, [])
+        conn.send(5007, {})
+        conn.send(5009, {})
 
+def address_request_respond(msg: dict, conn):
+    conn.send(5010, {
+        "addresses": [{'direction': 1,
+                 'firewalled': 1,
+                 'last_seen_time': 1569070047,
+                 'latency': 649791,
+                 'node_id': PublicKey('d1e8e336b548f2d6be14f2e7d1f61dc47c072b930aa1c6fc62296d9c07bbc1bdcf'),
+                 'remote_endpoint': '87.117.52.158:11206'}]
+    })
 
 message_action_table = {
-    5006: hello_respond
+    5006: hello_respond,
+    5009: address_request_respond,
 }
 
-def parse_message(msg: bytes, conn, no_action = False):
+def parse_message(msg: bytes, conn):
     size = unpack("<I", msg[:4])[0]
     msg_type = unpack("<I", msg[4:8])[0]
     definition: OrderedDict = message_definition_table.get(msg_type, None)
@@ -90,5 +100,5 @@ def parse_message(msg: bytes, conn, no_action = False):
             result[name], msg = unpack_field(msg, type_)
         pprint([message_name_table[msg_type], result])
         action = message_action_table.get(msg_type, None)
-        if action is not None and not no_action:
+        if action is not None and conn is not None:
             action(result, conn)

@@ -23,16 +23,20 @@ struct_definition_table = {
 def unpack_field(msg: bytes, type_: any):
     if type(type_) is list:
         return unpack_vector(msg, type_)
-    else:
-        unpacker = type_unpack_table.get(type_, None)
-        if unpacker is not None:
-            return unpacker(msg)
-        else:
-            if type_ in struct_definition_table.keys():
-                return unpack_struct(msg, type_)
-            else:
-                print("Unknown value type", type_)
-                return None, msg
+    unpacker = type_unpack_table.get(type_, None)
+    if unpacker is not None:
+        return unpacker(msg)
+    if type_ in struct_definition_table.keys():
+        return unpack_struct(msg, type_)
+    print("Unknown value type", type_)
+    return None, msg
+
+def unpack_struct(msg: bytes, type_):
+    definition = struct_definition_table[type_]
+    res = {}
+    for name, type_ in definition.items():
+        res[name], msg = unpack_field(msg, type_)
+    return res, msg
 
 def unpack_varint(msg: bytes):
     value = 0
@@ -43,13 +47,6 @@ def unpack_varint(msg: bytes):
             break
         i += 1
     return value, msg[i + 1:]
-
-def unpack_struct(msg: bytes, type_):
-    definition = struct_definition_table[type_]
-    result = {}
-    for name, type_ in definition.items():
-        result[name], msg = unpack_field(msg, type_)
-    return result, msg
 
 def unpack_string(msg: bytes):
     length, msg = unpack_varint(msg)
@@ -126,12 +123,23 @@ type_unpack_table = {
     "vector": unpack_vector,
 }
 
-def pack_field(type_: str, msg: any):
+def pack_field(msg: any, type_: any):
+    if type(type_) is list:
+        return pack_vector(msg, type_)
     packer = type_pack_table.get(type_, None)
-    if packer is None:
-        print("Unknown value type", type_)
-        return None
-    return packer(msg)
+    if packer is not None:
+        return packer(msg)
+    if type_ in struct_definition_table.keys():
+        return pack_struct(msg, type_)
+    print("Unknown value type", type_)
+    return None
+
+def pack_struct(msg: dict, type_):
+    definition = struct_definition_table[type_]
+    res = bytearray()
+    for name, type_ in definition.items():
+        res.extend(pack_field(msg.get(name, None), type_))
+    return res
 
 def pack_varint(msg: int):
     res = bytearray()
@@ -149,6 +157,9 @@ def pack_string(msg: str):
     res = pack_varint(len(msg))
     return res + bytearray(msg.encode("utf8"))
 
+def pack_uint8(msg: int):
+    return bytes([msg])
+
 def pack_uint16(msg: int):
     return pack("<H", msg)
 
@@ -158,12 +169,15 @@ def pack_uint32(msg: int):
 def pack_uint64(msg: int):
     return pack("<Q", msg)
 
+def pack_int64(msg: int):
+    return pack("<q", msg)
+
 def pack_ipaddr(msg: str):
     msg = list(map(int, msg.split(".")))
     return bytearray([msg[3], msg[2], msg[1], msg[0]])
 
 def pack_ipendp(msg: str):
-    msg = list(map(int, re.split(r":\.", msg)))
+    msg = list(map(int, re.split(r"[:\.]", msg)))
     return bytearray([msg[3], msg[2], msg[1], msg[0]]) + pack("<H", msg[4])
 
 def pack_pubkey(msg: PublicKey):
@@ -177,28 +191,38 @@ def pack_sha256(msg: bytes):
 
 def pack_object(msg: dict):
     res = bytearray()
-    res += pack_varint(len(msg))
+    res.extend(pack_varint(len(msg)))
     for k, v in msg.items():
-        res += pack_string(k)
+        res.extend(pack_string(k))
         if type(v) is int:
             res.append(2)
-            res += pack_uint64(v)
+            res.extend(pack_uint64(v))
         elif type(v) is str:
             res.append(5)
-            res += pack_string(v)
+            res.extend(pack_string(v))
         else:
             print("Unknown user data type", type(v))
     return res
 
+def pack_vector(msg: list, type_):
+    res = bytearray()
+    res.extend(pack_varint(len(msg)))
+    for i in msg:
+        res.extend(pack_field(i, type_[0]))
+    return res
+
 type_pack_table = {
     "string": pack_string,
+    "uint8": pack_uint8,
     "uint16": pack_uint16,
     "uint32": pack_uint32,
     "uint64": pack_uint64,
+    "int64": pack_int64,
     "ipaddr": pack_ipaddr,
     "ipendp": pack_ipendp,
     "pubkey": pack_pubkey,
     "sig": pack_signature,
     "sha256": pack_sha256,
     "object": pack_object,
+    "vector": pack_vector,
 }

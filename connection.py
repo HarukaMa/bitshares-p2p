@@ -54,28 +54,28 @@ class Connection:
         self.decryptor = AES.new(key, AES.MODE_CBC, iv)
         self.worker_thread = threading.Thread(target=self.worker)
         self.worker_thread.start()
-        self.send(5006, [
-            "Haruka Mock Client",
-            106,
-            "0.0.0.0",
-            0,
-            0,
-            sk.pubkey,
-            ecdsa.sign_message(self.shared_secret, str(sk)),
-            bytes.fromhex("4018d7844c78f6a6c41c6a552b898022310fc5dec06da467ee7905a8dad512c8"),
-            {"platform": "unknown"
-             }
-        ])
+        self.send(5006, {
+            "user_agent": "Haruka Mock Client",
+            "core_protocol_version": 106,
+            "inbound_address": "0.0.0.0",
+            "inbound_port": 0,
+            "outbound_port": 0,
+            "node_public_key": sk.pubkey,
+            "signed_shared_secret": ecdsa.sign_message(self.shared_secret, str(sk)),
+            "chain_id": bytes.fromhex("4018d7844c78f6a6c41c6a552b898022310fc5dec06da467ee7905a8dad512c8"),
+            "user_data": {
+                "platform": "unknown"
+            }
+        })
 
-    def send(self, type_, data):
-        definition = message_definition_table.get(type_, None)
+    def send(self, msg_type, data: dict):
+        definition = message_definition_table.get(msg_type, None)
         if definition is None:
-            print("Unknown message type", type_)
+            print("Unknown message type", msg_type)
             return
-        def_items = list(definition.items())
         res = bytearray()
-        for i, item in enumerate(data):
-            res += pack_field(def_items[i][1], item)
+        for name, type_ in definition.items():
+            res.extend(pack_field(data.get(name, None), type_))
         length = len(res)
         if length % 16 != 8:
             pad_length = (8 - length % 16)
@@ -83,10 +83,10 @@ class Connection:
                 pad_length += 16
             res += b"\x00" * pad_length
         length = len(res)
-        res = pack("<II", length, type_) + res
+        res = pack("<II", length, msg_type) + res
         data = self.encryptor.encrypt(res)
         print("SEND >>>", res)
-        parse_message(res, None, True)
+        parse_message(res, None)
         self.s.sendall(data)
 
     def worker(self):
