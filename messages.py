@@ -85,11 +85,23 @@ message_definition_table = {
     ]),
 }
 
+fetch_target = None
+
+def block_respond(msg: dict, conn):
+    if msg["block_id"] == fetch_target:
+        conn.send(5003, {
+            "item_type": 1001,
+            "blockchain_synopsis": [fetch_target]
+        })
+
 def item_id_inventory_respond(msg: dict, conn):
+    print(msg)
     conn.send(5004, {
-        "item_type": msg["item_type"],
-        "items_to_fetch": [msg["item_hashes_available"][0]]
+        "item_type": 1001,
+        "items_to_fetch": msg["item_hashes_available"]
     })
+    global fetch_target
+    fetch_target = msg["item_hashes_available"][-1]
 
 def fetch_item_id_respond(_, conn):
     conn.send(5002, {
@@ -127,7 +139,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": []
+        "blockchain_synopsis": ["02742b9597d952492056d0e051489e1495b665c8"]
     })
 
 def time_request_respond(msg: dict, conn):
@@ -139,7 +151,8 @@ def time_request_respond(msg: dict, conn):
     })
 
 message_action_table = {
-    # 5002: item_id_inventory_respond,
+    1001: block_respond,
+    5002: item_id_inventory_respond,
     5003: fetch_item_id_respond,
     5006: hello_respond,
     5009: address_request_respond,
@@ -158,7 +171,7 @@ def parse_message(msg: bytes, conn):
     buf = Buffer()
     buf.write(msg)
     if definition is None:
-        logging.warning("Unknown type of message:", msg_type, message_name_table.get(msg_type))
+        logging.warning("Unknown type of message: %d %s" % (msg_type, message_name_table.get(msg_type)))
     else:
         result = {}
         for name, type_ in definition.items():

@@ -19,7 +19,7 @@ struct_definition_table = {
         ("latency", "int64"),
         ("node_id", "pubkey"),
         ("direction", "uint8"),
-        ("firewalled", "uint8"),
+        ("firewalled", "uint8")
     ]),
     "signed_block": OrderedDict([
         ("previous", "ripemd160"),
@@ -28,22 +28,110 @@ struct_definition_table = {
         ("transaction_merkle_root", "ripemd160"),
         ("extensions", ["object"]),
         ("witness_signature", "sig"),
-        ("transactions", ["transaction"]),
+        ("transactions", ["transaction"])
     ]),
     "transaction": OrderedDict([
+        ("ref_block_num", "uint16"),
+        ("ref_block_prefix", "uint32"),
+        ("expiration", "uint32"),
+        ("operations", ["operation"]),
+        ("extensions", ["object"]),
+        ("signatures", ["sig"]),
+        ("operation_results", ["op_result"])
+    ]),
+    "asset": OrderedDict([
+        ("amount", "int64"),
+        ("asset_id", "asset_id")
+    ]),
+    "memo": OrderedDict([
+        ("from", "pubkey"),
+        ("to", "pubkey"),
+        ("nonce", "uint64"),
+        ("message", "varbyte")
+    ]),
+    "price": OrderedDict([
+        ("base", "asset"),
+        ("quote", "asset")
+    ]),
+    "price_feed": OrderedDict([
+        ("settlement_price", "price"),
+        ("core_exchange_rate", "price"),
+        ("maintenance_collateral_ratio", "uint16"),
+        ("maximum_short_squeeze_ratio", "uint16"),
+    ]),
+}
 
-    ])
+class Optional:
+    def __init__(self, type_):
+        self.type = type_
+
+operation_definition_table = {
+    0: OrderedDict([
+        ("fee", "asset"),
+        ("from", "account_id"),
+        ("to", "account_id"),
+        ("amount", "asset"),
+        ("memo", Optional("memo")),
+        ("extensions", ["object"]),
+    ]),
+    1: OrderedDict([
+        ("fee", "asset"),
+        ("seller", "account_id"),
+        ("amount_to_sell", "asset"),
+        ("min_to_receive", "asset"),
+        ("expiration", "uint32"),
+        ("fill_or_kill", "bool"),
+        ("extensions", ["object"]),
+    ]),
+    2: OrderedDict([
+        ("fee", "asset"),
+        ("order", "limit_order_id"),
+        ("fee_paying_account", "account_id"),
+        ("extensions", ["object"]),
+    ]),
+    19: OrderedDict([
+        ("fee", "asset"),
+        ("publisher", "account_id"),
+        ("asset_id", "asset_id"),
+        ("feed", "price_feed"),
+        ("extensions", ["object"]),
+    ]),
+    20: OrderedDict([
+        ("fee", "asset"),
+        ("witness_account", "account_id"),
+        ("url", "string"),
+        ("block_signing_key", "pubkey"),
+    ]),
+    37: OrderedDict([
+        ("fee", "asset"),
+        ("deposit_to_account", "account_id"),
+        ("balance_to_claim", "balance_id"),
+        ("balance_owner_key", "pubkey"),
+        ("total_claimed", "asset"),
+    ]),
+}
+
+type_id_definition_table = {
+    "account_id": (1, 2),
+    "asset_id": (1, 3),
+    "witness_id": (1, 6),
+    "limit_order_id": (1, 7),
+    "balance_id": (1, 13),
 }
 
 def unpack_field(msg: Buffer, type_: any):
     if type(type_) is list:
         return unpack_vector(msg, type_[0])
+    if type(type_) is Optional:
+        return unpack_optional(msg, type_.type)
     unpacker = type_unpack_table.get(type_, None)
     if unpacker is not None:
         return unpacker(msg)
     if type_ in struct_definition_table.keys():
         return unpack_struct(msg, type_)
-    logging.error("Unknown value type", type_)
+    if type_ in type_id_definition_table.keys():
+        return unpack_oid(msg, type_)
+    logging.error("Unknown value type %s" % type_)
     return None
 
 def unpack_struct(msg: Buffer, type_):
@@ -52,6 +140,13 @@ def unpack_struct(msg: Buffer, type_):
     for name, type_ in definition.items():
         res[name] = unpack_field(msg, type_)
     return res
+
+def unpack_optional(msg: Buffer, type_):
+    null = ord(msg.read(1))
+    if null == 0:
+        return None
+    else:
+        return unpack_field(msg, type_)
 
 def unpack_varint(msg: Buffer):
     value = 0
@@ -68,8 +163,15 @@ def unpack_string(msg: Buffer):
     length = unpack_varint(msg)
     return (msg.read(length)).decode("utf8")
 
+def unpack_varbyte(msg: Buffer):
+    length = unpack_varint(msg)
+    return msg.read(length).hex()
+
+def unpack_bool(msg: Buffer):
+    return True if ord(msg.read(1)) == 1 else False
+
 def unpack_uint8(msg: Buffer):
-    return msg.read(1)
+    return ord(msg.read(1))
 
 def unpack_uint16(msg: Buffer):
     return unpack("<H", msg.read(2))[0]
@@ -125,12 +227,46 @@ def unpack_vector(msg: Buffer, type_):
         obj.append(value)
     return obj
 
-# def unpack_oid(msg: bytes):
-#
-#     return "%d.%d.%d" % (space, type_, id_), msg[8:]
+def unpack_oid(msg: Buffer, type_):
+    if type_ is None:
+        data = unpack("<Q", msg.read(8))[0]
+        space = (data & (0xff << 56)) >> 56
+        type_ = (data & (0xff << 48)) >> 48
+        id_ = data & 0xffffffffffff
+        return "%d.%d.%d" % (space, type_, id_)
+    else:
+        fields = type_id_definition_table[type_]
+        id_ = unpack_varint(msg)
+        return "%d.%d.%d" % (fields[0], fields[1], id_)
+
+def unpack_operation(msg: Buffer):
+    op_type = ord(msg.read(1))
+    op = {}
+    res = [op_type, op]
+    definition = operation_definition_table.get(op_type, None)
+    if definition is not None:
+        for name, type_ in definition.items():
+            op[name] = unpack_field(msg, type_)
+        return res
+    logging.error("Unknown operation type %d" % op_type)
+    return None
+
+def unpack_op_result(msg: Buffer):
+    res_type = ord(msg.read(1))
+    res = [res_type]
+    if res_type == 0:
+        res.append(None)
+    elif res_type == 1:
+        res.append(unpack_oid(msg, None))
+    elif res_type == 2:
+        res.append(unpack_struct(msg, "asset"))
+    return res
+
 
 type_unpack_table = {
     "string": unpack_string,
+    "varbyte": unpack_varbyte,
+    "bool": unpack_bool,
     "uint8": unpack_uint8,
     "uint16": unpack_uint16,
     "uint32": unpack_uint32,
@@ -144,7 +280,9 @@ type_unpack_table = {
     "ripemd160": unpack_ripemd160,
     "object": unpack_object,
     "vector": unpack_vector,
-    # "witness_id": unpack_oid,
+    "oid": unpack_oid,
+    "operation": unpack_operation,
+    "op_result": unpack_op_result,
 }
 
 def pack_field(msg: any, type_: any):
@@ -168,7 +306,7 @@ def pack_struct(msg: dict, type_):
 def pack_varint(msg: int):
     res = bytearray()
     while True:
-        v = msg % 0x7f
+        v = msg & 0x7f
         if msg - 128 > 0:
             v |= 0x80
         res.append(v)

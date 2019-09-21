@@ -63,7 +63,6 @@ class Connection:
             if pad_length < 0:
                 pad_length += 16
             res += b"\x00" * pad_length
-        length = len(res)
         res = pack("<II", length, msg_type) + res
         data = self.encryptor.encrypt(res)
         logging.debug("SEND >>> %s" % res)
