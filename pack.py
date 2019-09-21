@@ -82,6 +82,9 @@ def unpack_signature(msg: bytes):
 def unpack_sha256(msg: bytes):
     return msg[:32].hex(), msg[32:]
 
+def unpack_ripemd160(msg: bytes):
+    return msg[:20].hex(), msg[20:]
+
 def unpack_object(msg: bytes):
     obj = {}
     # assuming count will not exceed 128
@@ -119,6 +122,7 @@ type_unpack_table = {
     "pubkey": unpack_pubkey,
     "sig": unpack_signature,
     "sha256": unpack_sha256,
+    "ripemd160": unpack_ripemd160,
     "object": unpack_object,
     "vector": unpack_vector,
 }
@@ -143,7 +147,7 @@ def pack_struct(msg: dict, type_):
 
 def pack_varint(msg: int):
     res = bytearray()
-    while msg > 0:
+    while True:
         v = msg % 0x7f
         if msg - 128 > 0:
             v |= 0x80

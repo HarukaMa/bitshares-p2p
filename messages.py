@@ -33,6 +33,15 @@ message_name_table = {
 }
 
 message_definition_table = {
+    5002: OrderedDict([
+        ("total_remaining_item_count", "uint32"),
+        ("item_type", "uint32"),
+        ("item_hashes_available", ["ripemd160"])
+    ]),
+    5003: OrderedDict([
+        ("item_type", "uint32"),
+        ("blockchain_synopsis", ["ripemd160"])
+    ]),
     5006: OrderedDict([
         ("user_agent", "string"),
         ("core_protocol_version", "uint32"),
@@ -66,6 +75,13 @@ message_definition_table = {
     ]),
 }
 
+def fetch_item_id_respond(_, conn):
+    conn.send(5002, {
+        "item_type": 1001,
+        "total_remaining_item_count": 0,
+        "item_hashes_available": []
+    })
+
 
 def hello_respond(msg: dict, conn):
     key = ecdsa.recover_public_key(
@@ -93,6 +109,10 @@ def address_respond(_, conn):
     conn.send(5012, {
         "request_sent_time": int(now.timestamp() * 1000000)
     })
+    conn.send(5003, {
+        "item_type": 1001,
+        "blockchain_synopsis": []
+    })
 
 def time_request_respond(msg: dict, conn):
     now = datetime.datetime.utcnow()
@@ -103,6 +123,7 @@ def time_request_respond(msg: dict, conn):
     })
 
 message_action_table = {
+    5003: fetch_item_id_respond,
     5006: hello_respond,
     5009: address_request_respond,
     5010: address_respond,
