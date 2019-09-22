@@ -12,6 +12,23 @@ user_data_type_table = {
     5: "string",
 }
 
+class Map:
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+
+class Optional:
+    def __init__(self, type_):
+        self.type = type_
+
+class Extension:
+    def __init__(self, type_):
+        self.type = type_
+
+class StaticVariant:
+    def __init__(self, types):
+        self.types = types
+
 struct_definition_table = {
     "address": OrderedDict([
         ("remote_endpoint", "ipendp"),
@@ -55,15 +72,65 @@ struct_definition_table = {
     ]),
     "price_feed": OrderedDict([
         ("settlement_price", "price"),
-        ("core_exchange_rate", "price"),
         ("maintenance_collateral_ratio", "uint16"),
         ("maximum_short_squeeze_ratio", "uint16"),
+        ("core_exchange_rate", "price"),
+    ]),
+    "authority": OrderedDict([
+        ("weight_threshold", "uint32"),
+        ("account_auths", Map("account_id", "uint16")),
+        ("key_auths", Map("pubkey", "uint16")),
+        ("address_auths", Map("ripemd160", "uint16")),
+    ]),
+    "account_options": OrderedDict([
+        ("memo_key", "pubkey"),
+        ("voting_account", "account_id"),
+        ("num_witness", "uint16"),
+        ("num_committee", "uint16"),
+        ("votes", ["vote_id"]),
+        ("extensions", ["object"]),
+    ]),
+    "call_order_options": {
+        "target_collateral_ratio": "uint16"
+    },
+    "linear_vesting": OrderedDict([
+        ("begin_timestamp", "uint32"),
+        ("vesting_cliff_seconds", "uint32"),
+        ("vesting_duration_seconds", "uint32"),
+    ]),
+    "cdd_vesting": OrderedDict([
+        ("start_claim", "uint32"),
+        ("vesting_seconds", "uint32"),
+    ]),
+    "instant_vesting": {},
+    "asset_options": OrderedDict([
+        ("max_supply", "int64"),
+        ("market_fee_percent", "uint16"),
+        ("max_market_fee", "int64"),
+        ("issuer_permissions", "uint16"),
+        ("flags", "uint16"),
+        ("core_exchange_rate", "price"),
+        ("whitelist_authorities", ["account_id"]),
+        ("blacklist_authorities", ["account_id"]),
+        ("whitelist_markets", ["asset_id"]),
+        ("blacklist_markets", ["asset_id"]),
+        ("description", "string"),
+        ("extensions", Extension("additional_asset_options")),
+    ]),
+    "additional_asset_options": OrderedDict([
+        ("reward_percent", "uint16"),
+        ("whitelist_market_fee_sharing", ["account_id"]),
+    ]),
+    "bitasset_options": OrderedDict([
+        ("feed_lifetime_sec", "uint16"),
+        ("minimum_feeds", "uint8"),
+        ("force_settlement_delay_sec", "uint32"),
+        ("force_settlement_offset_percent", "uint16"),
+        ("maximum_force_settlement_volume", "uint16"),
+        ("short_backing_asset", "asset_id"),
+        ("extensions", ["object"]),
     ]),
 }
-
-class Optional:
-    def __init__(self, type_):
-        self.type = type_
 
 operation_definition_table = {
     0: OrderedDict([
@@ -89,6 +156,63 @@ operation_definition_table = {
         ("fee_paying_account", "account_id"),
         ("extensions", ["object"]),
     ]),
+    3: OrderedDict([
+        ("fee", "asset"),
+        ("funding_account", "account_id"),
+        ("delta_collateral", "asset"),
+        ("delta_debt", "asset"),
+        ("extensions", Extension("call_order_options")),
+    ]),
+    5: OrderedDict([
+        ("fee", "asset"),
+        ("registrar", "account_id"),
+        ("referrer", "account_id"),
+        ("referrer_percent", "uint16"),
+        ("name", "string"),
+        ("owner", "authority"),
+        ("active", "authority"),
+        ("options", "account_options"),
+        ("extensions", ["object"]),
+    ]),
+    6: OrderedDict([
+        ("fee", "asset"),
+        ("account", "limit_order_id"),
+        ("owner", Optional("authority")),
+        ("active", Optional("authority")),
+        ("new_options", Optional("account_options")),
+        ("extensions", ["object"]),
+    ]),
+    10: OrderedDict([
+        ("fee", "asset"),
+        ("issuer", "account_id"),
+        ("symbol", "string"),
+        ("precision", "uint8"),
+        ("common_options", "asset_options"),
+        ("bitasset_opts", Optional("bitasset_options")),
+        ("is_prediction_market", "bool"),
+        ("extensions", ["object"]),
+    ]),
+    14: OrderedDict([
+        ("fee", "asset"),
+        ("issuer", "account_id"),
+        ("asset_to_issue", "asset"),
+        ("issue_to_account", "account_id"),
+        ("memo", Optional("memo")),
+        ("extensions", ["object"]),
+    ]),
+    15: OrderedDict([
+        ("fee", "asset"),
+        ("payer", "account_id"),
+        ("amount_to_reserve", "asset"),
+        ("extensions", ["object"]),
+    ]),
+    16: OrderedDict([
+        ("fee", "asset"),
+        ("from_account", "account_id"),
+        ("asset_id", "asset_id"),
+        ("amount", "int64"),
+        ("extensions", ["object"]),
+    ]),
     19: OrderedDict([
         ("fee", "asset"),
         ("publisher", "account_id"),
@@ -102,12 +226,62 @@ operation_definition_table = {
         ("url", "string"),
         ("block_signing_key", "pubkey"),
     ]),
+    22: OrderedDict([
+        ("fee", "asset"),
+        ("fee_paying_account", "account_id"),
+        ("expiration_time", "uint32"),
+        ("proposed_ops", ["operation"]),
+        ("review_period_seconds", Optional("uint32")),
+        ("extensions", ["object"]),
+    ]),
+    23: OrderedDict([
+        ("fee", "asset"),
+        ("fee_paying_account", "account_id"),
+        ("proposal", "proposal_id"),
+        ("active_approvals_to_add", ["account_id"]),
+        ("active_approvals_to_remove", ["account_id"]),
+        ("owner_approvals_to_add", ["account_id"]),
+        ("owner_approvals_to_remove", ["account_id"]),
+        ("key_approvals_to_add", ["pubkey"]),
+        ("key_approvals_to_remove", ["pubkey"]),
+        ("extensions", ["object"]),
+    ]),
+    32: OrderedDict([
+        ("fee", "asset"),
+        ("creator", "account_id"),
+        ("owner", "account_id"),
+        ("amount", "asset"),
+        ("policy", StaticVariant([
+            "linear_vesting",
+            "cdd_vesting",
+            "instant_vesting"
+        ])),
+    ]),
+    33: OrderedDict([
+        ("fee", "asset"),
+        ("vesting_balance", "balance_id"),
+        ("owner", "account_id"),
+        ("amount", "asset"),
+    ]),
     37: OrderedDict([
         ("fee", "asset"),
         ("deposit_to_account", "account_id"),
         ("balance_to_claim", "balance_id"),
         ("balance_owner_key", "pubkey"),
         ("total_claimed", "asset"),
+    ]),
+    43: OrderedDict([
+        ("fee", "asset"),
+        ("issuer", "account_id"),
+        ("amount_to_claim", "asset"),
+        ("extensions", ["object"]),
+    ]),
+    47: OrderedDict([
+        ("fee", "asset"),
+        ("issuer", "account_id"),
+        ("asset_id", "asset_id"),
+        ("amount_to_claim", "asset"),
+        ("extensions", ["object"]),
     ]),
 }
 
@@ -116,6 +290,7 @@ type_id_definition_table = {
     "asset_id": (1, 3),
     "witness_id": (1, 6),
     "limit_order_id": (1, 7),
+    "proposal_id": (1, 11),
     "balance_id": (1, 13),
 }
 
@@ -124,6 +299,12 @@ def unpack_field(msg: Buffer, type_: any):
         return unpack_vector(msg, type_[0])
     if type(type_) is Optional:
         return unpack_optional(msg, type_.type)
+    if type(type_) is Map:
+        return unpack_map(msg, type_)
+    if type(type_) is Extension:
+        return unpack_extension(msg, type_)
+    if type(type_) is StaticVariant:
+        return unpack_static_variant(msg, type_)
     unpacker = type_unpack_table.get(type_, None)
     if unpacker is not None:
         return unpacker(msg)
@@ -132,7 +313,7 @@ def unpack_field(msg: Buffer, type_: any):
     if type_ in type_id_definition_table.keys():
         return unpack_oid(msg, type_)
     logging.error("Unknown value type %s" % type_)
-    return None
+    assert False
 
 def unpack_struct(msg: Buffer, type_):
     definition = struct_definition_table[type_]
@@ -147,6 +328,29 @@ def unpack_optional(msg: Buffer, type_):
         return None
     else:
         return unpack_field(msg, type_)
+
+def unpack_map(msg: Buffer, type_: Map):
+    res = {}
+    length = unpack_varint(msg)
+    for _ in range(length):
+        key = unpack_field(msg, type_.key)
+        res[key] = unpack_field(msg, type_.value)
+    return res
+
+def unpack_extension(msg: Buffer, type_: Extension):
+    res = {}
+    length = unpack_varint(msg)
+    definition = struct_definition_table[type_.type]
+    items = list(definition.items())
+    for i in range(length):
+        index = unpack_varint(msg)
+        assert index == i
+        res[items[i][0]] = unpack_field(msg, items[i][1])
+    return res
+
+def unpack_static_variant(msg: Buffer, type_: StaticVariant):
+    index = unpack_varint(msg)
+    return unpack_field(msg, type_.types[index])
 
 def unpack_varint(msg: Buffer):
     value = 0
@@ -239,6 +443,12 @@ def unpack_oid(msg: Buffer, type_):
         id_ = unpack_varint(msg)
         return "%d.%d.%d" % (fields[0], fields[1], id_)
 
+def unpack_vote_id(msg: Buffer):
+    value = unpack("<I", msg.read(4))[0]
+    type_ = value & 0xff
+    instance = (value & 0xffffff00) >> 8
+    return "%d:%d" % (type_, instance)
+
 def unpack_operation(msg: Buffer):
     op_type = ord(msg.read(1))
     op = {}
@@ -249,7 +459,7 @@ def unpack_operation(msg: Buffer):
             op[name] = unpack_field(msg, type_)
         return res
     logging.error("Unknown operation type %d" % op_type)
-    return None
+    assert False
 
 def unpack_op_result(msg: Buffer):
     res_type = ord(msg.read(1))
@@ -281,6 +491,7 @@ type_unpack_table = {
     "object": unpack_object,
     "vector": unpack_vector,
     "oid": unpack_oid,
+    "vote_id": unpack_vote_id,
     "operation": unpack_operation,
     "op_result": unpack_op_result,
 }

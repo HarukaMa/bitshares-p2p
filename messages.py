@@ -95,12 +95,13 @@ def block_respond(msg: dict, conn):
         })
 
 def item_id_inventory_respond(msg: dict, conn):
-    print(msg)
+    global fetch_target
+    if fetch_target == msg["item_hashes_available"][0]:
+        return
     conn.send(5004, {
         "item_type": 1001,
         "items_to_fetch": msg["item_hashes_available"]
     })
-    global fetch_target
     fetch_target = msg["item_hashes_available"][-1]
 
 def fetch_item_id_respond(_, conn):
@@ -139,7 +140,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["02742b9597d952492056d0e051489e1495b665c8"]
+        "blockchain_synopsis": ["027459d691393208e653d28b5592dc429de6f1dc"]
     })
 
 def time_request_respond(msg: dict, conn):
@@ -176,7 +177,10 @@ def parse_message(msg: bytes, conn):
         result = {}
         for name, type_ in definition.items():
             result[name] = unpack_field(buf, type_)
-        logging.info(pformat([message_name_table[msg_type], result]), )
+        if msg_type >= 5000:
+            logging.info(pformat([message_name_table[msg_type], result]))
+        else:
+            logging.info([message_name_table[msg_type], "Block %d" % unpack("!I", bytes.fromhex(result["block_id"][:8]))[0]])
         action = message_action_table.get(msg_type, None)
         if action is not None and conn is not None:
             action(result, conn)
