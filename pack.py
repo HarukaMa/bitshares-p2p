@@ -356,10 +356,9 @@ def unpack_extension(msg: Buffer, type_: Extension):
     length = unpack_varint(msg)
     definition = struct_definition_table[type_.type]
     items = list(definition.items())
-    for i in range(length):
+    for _ in range(length):
         index = unpack_varint(msg)
-        assert index == i
-        res[items[i][0]] = unpack_field(msg, items[i][1])
+        res[items[index][0]] = unpack_field(msg, items[index][1])
     return res
 
 def unpack_static_variant(msg: Buffer, type_: StaticVariant):
