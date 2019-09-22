@@ -47,6 +47,14 @@ struct_definition_table = {
         ("witness_signature", "sig"),
         ("transactions", ["transaction"])
     ]),
+    "precomputable_transaction": OrderedDict([
+        ("ref_block_num", "uint16"),
+        ("ref_block_prefix", "uint32"),
+        ("expiration", "uint32"),
+        ("operations", ["operation"]),
+        ("extensions", ["object"]),
+        ("signatures", ["sig"]),
+    ]),
     "transaction": OrderedDict([
         ("ref_block_num", "uint16"),
         ("ref_block_prefix", "uint32"),
@@ -211,6 +219,12 @@ operation_definition_table = {
         ("from_account", "account_id"),
         ("asset_id", "asset_id"),
         ("amount", "int64"),
+        ("extensions", ["object"]),
+    ]),
+    17: OrderedDict([
+        ("fee", "asset"),
+        ("account", "account_id"),
+        ("amount", "asset"),
         ("extensions", ["object"]),
     ]),
     19: OrderedDict([

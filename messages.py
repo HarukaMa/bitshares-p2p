@@ -35,9 +35,16 @@ message_name_table = {
 }
 
 message_definition_table = {
+    1000: {
+        "trx": "precomputable_transaction"
+    },
     1001: OrderedDict([
         ("block", "signed_block"),
         ("block_id", "ripemd160")
+    ]),
+    5001: OrderedDict([
+        ("item_type", "uint32"),
+        ("item_hashes_available", ["ripemd160"])
     ]),
     5002: OrderedDict([
         ("total_remaining_item_count", "uint32"),
@@ -95,8 +102,22 @@ def block_respond(msg: dict, conn):
         })
 
 def item_id_inventory_respond(msg: dict, conn):
+    if msg["item_type"] == 1001:
+        global fetch_target
+        fetch_target = msg["item_hashes_available"][0]
+        conn.send(5004, {
+            "item_type": 1001,
+            "items_to_fetch": [fetch_target]
+        })
+    else:
+        conn.send(5004, {
+            "item_type": 1000,
+            "items_to_fetch": [msg["item_hashes_available"][0]]
+        })
+
+def blockchain_item_id_inventory_respond(msg: dict, conn):
     global fetch_target
-    if fetch_target == msg["item_hashes_available"][0]:
+    if fetch_target == msg["item_hashes_available"][-1]:
         return
     conn.send(5004, {
         "item_type": 1001,
@@ -153,7 +174,8 @@ def time_request_respond(msg: dict, conn):
 
 message_action_table = {
     1001: block_respond,
-    5002: item_id_inventory_respond,
+    5001: item_id_inventory_respond,
+    5002: blockchain_item_id_inventory_respond,
     5003: fetch_item_id_respond,
     5006: hello_respond,
     5009: address_request_respond,
@@ -179,8 +201,10 @@ def parse_message(msg: bytes, conn):
             result[name] = unpack_field(buf, type_)
         if msg_type >= 5000:
             logging.info(pformat([message_name_table[msg_type], result]))
-        else:
+        elif msg_type == 1001:
             logging.info([message_name_table[msg_type], "Block %d" % unpack("!I", bytes.fromhex(result["block_id"][:8]))[0]])
+        else:
+            logging.info(pformat([message_name_table[msg_type], "Transaction"]))
         action = message_action_table.get(msg_type, None)
         if action is not None and conn is not None:
             action(result, conn)
