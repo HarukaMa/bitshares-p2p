@@ -6,11 +6,11 @@ from struct import pack, unpack
 
 import cityhash
 from Cryptodome.Cipher import AES
-from graphenebase import PublicKey, PrivateKey, ecdsa
+from graphenebase import PublicKey as GraphenePublicKey, PrivateKey, ecdsa
 
-from .messages import parse_message, message_definition_table
-from .pack import pack_field
-from .utils import Buffer
+from basic_types import String
+from messages import parse_message, message_type_table
+from utils import Buffer
 
 class Connection:
 
@@ -19,7 +19,7 @@ class Connection:
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((ip, port))
         raw_pk = self.s.recv(33)
-        self.pk = PublicKey(raw_pk.hex())
+        self.pk = GraphenePublicKey(raw_pk.hex())
         sk = PrivateKey()
         point = self.pk.point() * int.from_bytes(bytes(sk), "big")
         x: int = point.x()
@@ -45,18 +45,16 @@ class Connection:
             "signed_shared_secret": ecdsa.sign_message(self.shared_secret, str(sk)),
             "chain_id": bytes.fromhex("4018d7844c78f6a6c41c6a552b898022310fc5dec06da467ee7905a8dad512c8"),
             "user_data": {
-                "platform": "unknown"
+                "platform": String("unknown")
             }
         })
 
     def send(self, msg_type, data: dict):
-        definition = message_definition_table.get(msg_type, None)
-        if definition is None:
-            logging.error("Unknown message type", msg_type)
-            return
-        res = bytearray()
-        for name, type_ in definition.items():
-            res.extend(pack_field(data.get(name, None), type_))
+        message_type = message_type_table[msg_type]
+        message = message_type(data)
+        res = message.pack()
+        # for name, type_ in definition.items():
+        #     res.extend(pack_field(data.get(name, None), type_))
         length = len(res)
         if length % 16 != 8:
             pad_length = (8 - length % 16)

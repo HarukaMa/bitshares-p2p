@@ -1,14 +1,153 @@
 import datetime
 import logging
+from abc import abstractmethod
 from collections import OrderedDict
 from hashlib import sha256
 from pprint import pformat
 from struct import unpack
 
-from graphenebase import ecdsa, PublicKey
+from graphenebase import ecdsa, PublicKey as GraphenePublicKey
 
-from .pack import unpack_field
-from .utils import Buffer
+from basic_types import (
+    RIPEMD160, Uint32, String, IPAddress, Uint16, Signature, SHA256, VariantObject, IPEndpoint, Uint8, Bool, Uint64,
+    PublicKey)
+from generic_types import Vector
+from objectimpl import Address
+from objects import Object
+from operationimpl import SignedBlock
+from utils import Buffer
+
+ItemID = RIPEMD160
+
+class Message(Object):
+
+    @abstractmethod
+    def message_id(self):
+        pass
+
+
+class TrxMessage(Message):
+
+    message_id = 1000
+    definition = {
+        "trx": "precomputable_transaction"
+    }
+
+class BlockMessage(Message):
+
+    message_id = 1001
+    definition = OrderedDict([
+        ("block", SignedBlock),
+        ("block_id", ItemID)
+    ])
+
+class ItemIDsInventoryMessage(Message):
+
+    message_id = 5001
+    definition = OrderedDict([
+        ("item_type", Uint32),
+        ("item_hashes_available", Vector[ItemID])
+    ])
+
+class BlockchainItemIDsInventoryMessage(Message):
+
+    message_id = 5002
+    definition = OrderedDict([
+        ("total_remaining_item_count", Uint32),
+        ("item_type", Uint32),
+        ("item_hashes_available", Vector[ItemID])
+    ])
+
+class FetchBlockchainItemIDsMessage(Message):
+
+    message_id = 5003
+    definition = OrderedDict([
+        ("item_type", Uint32),
+        ("blockchain_synopsis", Vector[ItemID])
+    ])
+
+class FetchItemsMessage(Message):
+
+    message_id = 5004
+    definition = OrderedDict([
+        ("item_type", Uint32),
+        ("items_to_fetch", Vector[ItemID])
+    ])
+
+class ItemNotAvailableMessage(Message):
+
+    message_id = 5005
+    definition = {
+        "requested_item": ItemID
+    }
+
+class HelloMessage(Message):
+
+    message_id = 5006
+    definition = OrderedDict([
+        ("user_agent", String),
+        ("core_protocol_version", Uint32),
+        ("inbound_address", IPAddress),
+        ("inbound_port", Uint16),
+        ("outbound_port", Uint16),
+        ("node_public_key", PublicKey),
+        ("signed_shared_secret", Signature),
+        ("chain_id", SHA256),
+        ("user_data", VariantObject)
+    ])
+
+class ConnectionAcceptedMessage(Message):
+
+    message_id = 5007
+    definition = {}
+
+class ConnectionRejectedMessage(Message):
+
+    message_id = 5008
+    definition = OrderedDict([
+        ("user_agent", String),
+        ("core_protocol_version", Uint32),
+        ("remote_endpoint", IPEndpoint),
+        ("reason_code", Uint8),
+        ("reason_string", String)
+    ])
+
+class AddressRequestMessage(Message):
+
+    message_id = 5009
+    definition = {}
+
+class AddressMessage(Message):
+
+    message_id = 5010
+    definition = {
+        "addresses": Vector[Address]
+    }
+
+class ClosingConnectionMessage(Message):
+
+    message_id = 5011
+    definition = OrderedDict([
+        ("reason_for_closing", String),
+        ("closing_due_to_error", Bool),
+        ("error", ""),
+    ])
+
+class CurrentTimeRequestMessage(Message):
+
+    message_id = 5012
+    definition = {
+        "request_sent_time": Uint64
+    }
+
+class CurrentTimeReplyMessage(Message):
+
+    message_id = 5013
+    definition = OrderedDict([
+        ("request_sent_time", Uint64),
+        ("request_received_time", Uint64),
+        ("reply_transmitted_time", Uint64)
+    ])
 
 message_name_table = {
     1000: "trx_message_type",
@@ -31,71 +170,35 @@ message_name_table = {
     5015: "check_firewall_reply_message_type",
     5016: "get_current_connections_request_message_type",
     5017: "get_current_connections_reply_message_type",
-    5099: "core_message_type",
+    5099: "core_message_type"
 }
 
-message_definition_table = {
-    1000: {
-        "trx": "precomputable_transaction"
-    },
-    1001: OrderedDict([
-        ("block", "signed_block"),
-        ("block_id", "ripemd160")
-    ]),
-    5001: OrderedDict([
-        ("item_type", "uint32"),
-        ("item_hashes_available", ["ripemd160"])
-    ]),
-    5002: OrderedDict([
-        ("total_remaining_item_count", "uint32"),
-        ("item_type", "uint32"),
-        ("item_hashes_available", ["ripemd160"])
-    ]),
-    5003: OrderedDict([
-        ("item_type", "uint32"),
-        ("blockchain_synopsis", ["ripemd160"])
-    ]),
-    5004: OrderedDict([
-        ("item_type", "uint32"),
-        ("items_to_fetch", ["ripemd160"])
-    ]),
-    5006: OrderedDict([
-        ("user_agent", "string"),
-        ("core_protocol_version", "uint32"),
-        ("inbound_address", "ipaddr"),
-        ("inbound_port", "uint16"),
-        ("outbound_port", "uint16"),
-        ("node_public_key", "pubkey"),
-        ("signed_shared_secret", "sig"),
-        ("chain_id", "sha256"),
-        ("user_data", "object"),
-    ]),
-    5007: {},
-    5008: OrderedDict([
-        ("user_agent", "string"),
-        ("core_protocol_version", "uint32"),
-        ("remote_endpoint", "ipendp"),
-        ("reason_code", "uint8"),
-        ("reason_string", "string"),
-    ]),
-    5009: {},
-    5010: {
-        "addresses": ["address"]
-    },
-    5012: {
-        "request_sent_time": "uint64"
-    },
-    5013: OrderedDict([
-        ("request_sent_time", "uint64"),
-        ("request_received_time", "uint64"),
-        ("reply_transmitted_time", "uint64"),
-    ]),
+message_type_table = {
+    1000: TrxMessage,
+    1001: BlockMessage,
+    5001: ItemIDsInventoryMessage,
+    5002: BlockchainItemIDsInventoryMessage,
+    5003: FetchBlockchainItemIDsMessage,
+    5004: FetchItemsMessage,
+    5005: ItemNotAvailableMessage,
+    5006: HelloMessage,
+    5007: ConnectionAcceptedMessage,
+    5008: ConnectionRejectedMessage,
+    5009: AddressRequestMessage,
+    5010: AddressMessage,
+    5011: ClosingConnectionMessage,
+    5012: CurrentTimeRequestMessage,
+    5013: CurrentTimeReplyMessage,
+    5014: None,
+    5015: None,
+    5016: None,
+    5017: None,
 }
 
 fetch_target = None
 
 def block_respond(msg: dict, conn):
-    if msg["block_id"] == fetch_target:
+    if msg["block_id"].data == fetch_target:
         conn.send(5003, {
             "item_type": 1001,
             "blockchain_synopsis": [fetch_target]
@@ -104,7 +207,7 @@ def block_respond(msg: dict, conn):
 def item_id_inventory_respond(msg: dict, conn):
     if msg["item_type"] == 1001:
         global fetch_target
-        fetch_target = msg["item_hashes_available"][0]
+        fetch_target = msg["item_hashes_available"][0].data
         conn.send(5004, {
             "item_type": 1001,
             "items_to_fetch": [fetch_target]
@@ -123,7 +226,7 @@ def blockchain_item_id_inventory_respond(msg: dict, conn):
         "item_type": 1001,
         "items_to_fetch": msg["item_hashes_available"]
     })
-    fetch_target = msg["item_hashes_available"][-1]
+    fetch_target = msg["item_hashes_available"][-1].data
 
 def fetch_item_id_respond(_, conn):
     conn.send(5002, {
@@ -132,26 +235,28 @@ def fetch_item_id_respond(_, conn):
         "item_hashes_available": []
     })
 
-
 def hello_respond(msg: dict, conn):
     key = ecdsa.recover_public_key(
               sha256(conn.shared_secret).digest(),
-              bytes.fromhex(msg["signed_shared_secret"][2:]),
-              0 if msg["signed_shared_secret"][0] == "1" else 1
+              msg["signed_shared_secret"].data[1:],
+              0 if msg["signed_shared_secret"].data[0] == 31 else 1
           )
     res = bytes([3] if key.to_string()[63] % 2 == 1 else [2]) + key.to_string()[:32]
-    if msg["node_public_key"] == res.hex():
+    if repr(msg["node_public_key"].data) == res.hex():
         conn.send(5007, {})
         conn.send(5009, {})
 
 def address_request_respond(_, conn):
+    address = Address()
+    address.__dict__.update({'direction': 1,
+                             'firewalled': 1,
+                             'last_seen_time': 1569070047,
+                             'latency': 649791,
+                             'node_id': GraphenePublicKey(
+                                 'd1e8e336b548f2d6be14f2e7d1f61dc47c072b930aa1c6fc62296d9c07bbc1bdcf'),
+                             'remote_endpoint': '87.117.52.158:11206'})
     conn.send(5010, {
-        "addresses": [{'direction': 1,
-                 'firewalled': 1,
-                 'last_seen_time': 1569070047,
-                 'latency': 649791,
-                 'node_id': PublicKey('d1e8e336b548f2d6be14f2e7d1f61dc47c072b930aa1c6fc62296d9c07bbc1bdcf'),
-                 'remote_endpoint': '87.117.52.158:11206'}]
+        "addresses": [address]
     })
 
 def address_respond(_, conn):
@@ -186,25 +291,20 @@ message_action_table = {
 def parse_message(msg: bytes, conn):
     size = unpack("<I", msg[:4])[0]
     msg_type = unpack("<I", msg[4:8])[0]
-    definition: OrderedDict = message_definition_table.get(msg_type, None)
+    message_type = message_type_table[msg_type]
     end = -(len(msg) - size - 8)
     if end == 0:
         end = None
     msg = msg[8:end]
     buf = Buffer()
     buf.write(msg)
-    if definition is None:
-        logging.warning("Unknown type of message: %d %s" % (msg_type, message_name_table.get(msg_type)))
+    message = message_type.unpack(buf)
+    if msg_type >= 5000:
+        logging.info(pformat([message_name_table[msg_type], message]))
+    elif msg_type == 1001:
+        logging.info([message_name_table[msg_type], "Block %d" % unpack("!I", message["block_id"].data[:4])[0]])
     else:
-        result = {}
-        for name, type_ in definition.items():
-            result[name] = unpack_field(buf, type_)
-        if msg_type >= 5000:
-            logging.info(pformat([message_name_table[msg_type], result]))
-        elif msg_type == 1001:
-            logging.info([message_name_table[msg_type], "Block %d" % unpack("!I", bytes.fromhex(result["block_id"][:8]))[0]])
-        else:
-            logging.info(pformat([message_name_table[msg_type], "Transaction"]))
-        action = message_action_table.get(msg_type, None)
-        if action is not None and conn is not None:
-            action(result, conn)
+        logging.info(pformat([message_name_table[msg_type], "Transaction"]))
+    action = message_action_table.get(msg_type, None)
+    if action is not None and conn is not None:
+        action(message, conn)

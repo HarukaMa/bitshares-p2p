@@ -1,6 +1,6 @@
 import logging
 import sys
-from .connection import Connection
+from connection import Connection
 
 if __name__ == '__main__':
     logging.basicConfig(
