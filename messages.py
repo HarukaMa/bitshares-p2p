@@ -266,7 +266,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["027459d691393208e653d28b5592dc429de6f1dc"]
+        "blockchain_synopsis": ["0274fb54f16f303250dda771297deabaa3ea6be2"]
     })
 
 def time_request_respond(msg: dict, conn):
@@ -302,7 +302,7 @@ def parse_message(msg: bytes, conn):
     if msg_type >= 5000:
         logging.info(pformat([message_name_table[msg_type], message]))
     elif msg_type == 1001:
-        logging.info([message_name_table[msg_type], "Block %d" % unpack("!I", message["block_id"].data[:4])[0]])
+        logging.info([message_name_table[msg_type], "Block %d %s" % (unpack("!I", message["block_id"].data[:4])[0], message["block_id"].data.hex())])
     else:
         logging.info(pformat([message_name_table[msg_type], "Transaction"]))
     action = message_action_table.get(msg_type, None)

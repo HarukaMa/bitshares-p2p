@@ -438,7 +438,9 @@ class OverrideTransferOperation(Operation):
         ("issuer", AccountID),
         ("from", AccountID),
         ("to", AccountID),
-        ("amount", Asset)
+        ("amount", Asset),
+        ("memo", Optional[Memo]),
+        ("extensions", Extension[EmptyExtension])
     ])
 
 class TransferToBlindOperation(Operation):
@@ -449,7 +451,7 @@ class TransferToBlindOperation(Operation):
         ("amount", Asset),
         ("from", AccountID),
         ("blinding_factor", SHA256),
-        ("inputs", Vector[BlindInput])
+        ("outputs", Vector[BlindOutput])
     ])
 
 class BlindTransferOperation(Operation):
