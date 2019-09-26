@@ -14,7 +14,7 @@ from basic_types import (
 from generic_types import Vector
 from objectimpl import Address
 from objects import Object
-from operationimpl import SignedBlock
+from operationimpl import SignedBlock, PrecomuutableTransaction
 from utils import Buffer
 
 ItemID = RIPEMD160
@@ -30,7 +30,7 @@ class TrxMessage(Message):
 
     message_id = 1000
     definition = {
-        "trx": "precomputable_transaction"
+        "trx": PrecomuutableTransaction
     }
 
 class BlockMessage(Message):
@@ -220,7 +220,7 @@ def item_id_inventory_respond(msg: dict, conn):
 
 def blockchain_item_id_inventory_respond(msg: dict, conn):
     global fetch_target
-    if fetch_target == msg["item_hashes_available"][-1]:
+    if fetch_target == msg["item_hashes_available"][-1].data:
         return
     conn.send(5004, {
         "item_type": 1001,
@@ -266,7 +266,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["0274fb54f16f303250dda771297deabaa3ea6be2"]
+        "blockchain_synopsis": ["02764065e3ce65687a4e9bb81fd670db1a837cec"]
     })
 
 def time_request_respond(msg: dict, conn):
