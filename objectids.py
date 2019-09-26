@@ -102,6 +102,11 @@ class VestingBalanceID(ObjectID, FullObjectID):
     space = 1
     type = 13
 
+class WorkerID(ObjectID, FullObjectID):
+
+    space = 1
+    type = 14
+
 FullObjectID.oid_types = {
     2: AccountID,
     3: AssetID,
@@ -115,4 +120,5 @@ FullObjectID.oid_types = {
     11: OperationHistoryID,
     12: WithdrawPermissionID,
     13: VestingBalanceID,
+    14: WorkerID,
 }

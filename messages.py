@@ -247,16 +247,8 @@ def hello_respond(msg: dict, conn):
         conn.send(5009, {})
 
 def address_request_respond(_, conn):
-    address = Address()
-    address.__dict__.update({'direction': 1,
-                             'firewalled': 1,
-                             'last_seen_time': 1569070047,
-                             'latency': 649791,
-                             'node_id': GraphenePublicKey(
-                                 'd1e8e336b548f2d6be14f2e7d1f61dc47c072b930aa1c6fc62296d9c07bbc1bdcf'),
-                             'remote_endpoint': '87.117.52.158:11206'})
     conn.send(5010, {
-        "addresses": [address]
+        "addresses": []
     })
 
 def address_respond(_, conn):
@@ -266,7 +258,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["02764065e3ce65687a4e9bb81fd670db1a837cec"]
+        "blockchain_synopsis": ["027644b8283a967e1e0505196a0ee449fccf5e80"]
     })
 
 def time_request_respond(msg: dict, conn):

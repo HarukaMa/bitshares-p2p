@@ -2,7 +2,7 @@
 from collections import OrderedDict
 
 from basic_types import (
-    IPEndpoint, Uint32, Int64, PublicKey, Uint8, RIPEMD160, Uint16, Uint64, Data, String, VoteID, Bool)
+    IPEndpoint, Uint32, Int64, PublicKey, Uint8, RIPEMD160, Uint16, Uint64, Data, String, VoteID, FakePublicKey)
 from generic_types import Vector, Extension, Map, StaticVariant, Optional
 from objectids import AssetID, AccountID
 from objects import Object
@@ -21,7 +21,7 @@ class Address(Object):
         ("remote_endpoint", IPEndpoint),
         ("last_seen_time", Uint32),
         ("latency", Int64),
-        ("node_id", PublicKey),
+        ("node_id", FakePublicKey),
         ("direction", Uint8),
         ("firewalled", Uint8)
     ])

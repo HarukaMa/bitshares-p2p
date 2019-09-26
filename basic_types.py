@@ -29,9 +29,6 @@ class JsonSerializable(metaclass=ABCMeta):
 
 class VarInt(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < 0 or data > 0xffffffffffffffff:
@@ -68,9 +65,6 @@ class VarInt(Serializable):
 
 class String(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not str:
             raise TypeError("Unsupported type %s, expected str" % type(data).__name__)
         self.data = data
@@ -91,9 +85,6 @@ class String(Serializable):
 class Data(Serializable):
     # maps to c++ vector<char> as this type have special json serialization
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is bytes:
             self.data = data
         elif type(data) is bytearray:
@@ -115,9 +106,6 @@ class Data(Serializable):
 
 class Bool(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not bool:
             raise TypeError("Unsupported type %s, expected bool" % type(data).__name__)
         self.data = data
@@ -135,9 +123,6 @@ class Bool(Serializable):
 
 class Uint8(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < 0 or data > 255:
@@ -156,9 +141,6 @@ class Uint8(Serializable):
 
 class Uint16(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < 0 or data > 0xffff:
@@ -177,9 +159,6 @@ class Uint16(Serializable):
 
 class Uint32(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < 0 or data > 0xffffffff:
@@ -198,9 +177,6 @@ class Uint32(Serializable):
 
 class Uint64(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < 0 or data > 0xffffffffffffffff:
@@ -219,9 +195,6 @@ class Uint64(Serializable):
 
 class Int64(Serializable):
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
         if data < -0x8000000000000000 or data > 0x7fffffffffffffff:
@@ -241,9 +214,6 @@ class Int64(Serializable):
 class IPAddress(Serializable):
     # Saved as string internally
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not str:
             raise TypeError("Unsupported type %s, expected str" % type(data).__name__)
         if re.match(r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", data) is None:
@@ -265,9 +235,6 @@ class IPAddress(Serializable):
 class IPEndpoint(Serializable):
     # Saved as string internally
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not str:
             raise TypeError("Unsupported type %s, expected str" % type(data).__name__)
         if re.match(r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\d+", data) is None:
@@ -295,12 +262,29 @@ class IPEndpoint(Serializable):
     def __repr__(self):
         return self.data
 
+class FakePublicKey(Serializable):
+    # for node_ids which is actually random 33 bytes
+    def __init__(self, data):
+        if type(data) is bytes:
+            self.data = data
+        elif type(data) is bytearray:
+            self.data = bytes(data)
+        else:
+            raise TypeError("Unsupported type %s, expected bytes-like object" % type(data).__name__)
+
+    @staticmethod
+    def unpack(msg: Buffer):
+        return FakePublicKey(msg.read(33))
+
+    def pack(self):
+        return bytearray(self.data)
+
+    def __repr__(self):
+        return repr(self.data)
+
 class PublicKey(Serializable):
     # wraps around graphenebase pubkey
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is GraphenePublicKey:
             self.data = data
         else:
@@ -320,9 +304,6 @@ class PublicKey(Serializable):
 class Signature(Serializable):
     # save as bytes
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is bytes:
             self.data = data
         elif type(data) is bytearray:
@@ -343,9 +324,6 @@ class Signature(Serializable):
 class SHA256(Serializable):
 
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is bytes:
             self.data = data
         elif type(data) is bytearray:
@@ -366,9 +344,6 @@ class SHA256(Serializable):
 class RIPEMD160(Serializable):
     # only used as item id and address
     def __init__(self, data):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is bytes:
             self.data = data
         elif type(data) is bytearray:
@@ -423,9 +398,6 @@ class VoteID(Serializable):
 class VariantObject(Serializable):
     # dict string:any, enforce string
     def __init__(self, data: dict):
-        if type(data) is type(self):
-            self.data = data
-            return
         if type(data) is not dict:
             raise TypeError("Unsupported type %s, expected dict" % type(data).__name__)
         if not all(type(x) is str or type(x) is String for x in data.keys()):
