@@ -1,11 +1,11 @@
 from abc import ABCMeta, abstractmethod
 from struct import unpack
 
-from basic_types import Serializable, VarInt
+from basic_types import Serializable, VarInt, JSONSerializable
 from utils import Buffer
 
 
-class ObjectID(Serializable, metaclass=ABCMeta):
+class ObjectID(Serializable, JSONSerializable, metaclass=ABCMeta):
 
     def __init__(self, data):
         if type(data) is VarInt:
@@ -29,6 +29,10 @@ class ObjectID(Serializable, metaclass=ABCMeta):
 
     def pack(self):
         return VarInt(self.id).pack()
+
+    def json_object(self):
+        # noinspection PyStringFormat,PyUnresolvedReferences
+        return "%d.%d.%d" % (self.space, self.type, self.id)
 
 
 class FullObjectID(Serializable, metaclass=ABCMeta):

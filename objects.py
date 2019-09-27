@@ -1,11 +1,12 @@
 from abc import ABCMeta, abstractmethod
 
 from basic_types import (
-    Serializable)
+    Serializable, JSONSerializable)
 from utils import Buffer
 
 
-class Object(Serializable, metaclass=ABCMeta):
+# noinspection PyUnresolvedReferences
+class Object(Serializable, JSONSerializable, metaclass=ABCMeta):
 
     def __init__(self, *args):
         if len(args) > 1:
@@ -22,14 +23,12 @@ class Object(Serializable, metaclass=ABCMeta):
     @classmethod
     def unpack(cls, msg: Buffer):
         res = cls()
-        # noinspection PyUnresolvedReferences
         for name, type_ in cls.definition.items():
             setattr(res, name, type_.unpack(msg))
         return res
 
     def pack(self):
         res = bytearray()
-        # noinspection PyUnresolvedReferences
         for name, type_ in self.definition.items():
             value = getattr(self, name)
             if type(value) is type_:
@@ -44,3 +43,14 @@ class Object(Serializable, metaclass=ABCMeta):
     def __setitem__(self, item, value):
         return setattr(self, item, value)
 
+    def __repr__(self):
+        return type(self).__name__
+
+    def json_object(self):
+        res = {}
+        for k in self.definition.keys():
+            if type(self[k]) is dict:
+                res[k] = self[k]
+            else:
+                res[k] = self[k].json_object()
+        return res

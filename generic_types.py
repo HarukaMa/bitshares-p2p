@@ -3,8 +3,9 @@
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
-from basic_types import Serializable, VarInt
+from basic_types import Serializable, VarInt, JSONSerializable
 from utils import Buffer
+
 
 # Generic types
 
@@ -25,7 +26,7 @@ class GenericType(metaclass=ABCMeta):
             raise TypeError
         return cls(item)
 
-class Vector(Serializable, GenericType):
+class Vector(Serializable, JSONSerializable, GenericType):
     def __init__(self, types):
         if len(types) != 1:
             raise TypeError("Vector should only have 1 type")
@@ -39,7 +40,10 @@ class Vector(Serializable, GenericType):
             raise TypeError("Unsupported type %s, expected list" % type(data).__name__)
         self.data = []
         for item in data:
-            if isinstance(item, self.types[0]):
+            # type is generic, item has same type, item is initialized
+            if isinstance(self.types[0], GenericType) and isinstance(item, type(self.types[0])) and getattr(item, "data", None):
+                self.data.append(item)
+            elif isinstance(item, self.types[0]):
                 self.data.append(item)
             else:
                 self.data.append(self.types[0](item))
@@ -50,7 +54,7 @@ class Vector(Serializable, GenericType):
         count = VarInt.unpack(msg)
         for _ in range(count):
             obj.append(self.types[0].unpack(msg))
-        return obj
+        return self(obj)
 
     def pack(self):
         res = VarInt(len(self.data)).pack()
@@ -58,7 +62,13 @@ class Vector(Serializable, GenericType):
             res.extend(i.pack())
         return res
 
-class Map(Serializable, GenericType):
+    def __repr__(self):
+        return "[" + ", ".join(list(map(repr, self.data))) + "]"
+
+    def json_object(self):
+        return list([x.json_object() for x in self.data])
+
+class Map(Serializable, JSONSerializable, GenericType):
     def __init__(self, types):
         if len(types) != 2:
             raise TypeError("Map should have 2 types")
@@ -95,8 +105,11 @@ class Map(Serializable, GenericType):
             res.extend(v.pack())
         return res
 
+    def json_object(self):
+        return dict((k.json_object(), v.json_object()) for k, v in self.data.items())
 
-class Optional(Serializable, GenericType):
+
+class Optional(Serializable, JSONSerializable, GenericType):
     def __init__(self, types):
         if len(types) != 1:
             raise TypeError("Optional should only have 1 type")
@@ -131,7 +144,12 @@ class Optional(Serializable, GenericType):
             res.extend(self.data.pack())
             return res
 
-class Extension(Serializable, GenericType):
+    def json_object(self):
+        if self.null:
+            return None
+        return self.data.json_object()
+
+class Extension(Serializable, JSONSerializable, GenericType):
     # extension relies on the structure definition of Object to work
     def __init__(self, types):
         if len(types) != 1:
@@ -170,7 +188,18 @@ class Extension(Serializable, GenericType):
             res.extend(v.pack())
         return res
 
-class StaticVariant(Serializable, GenericType):
+    def json_object(self):
+        definition: OrderedDict = self.types[0].definition
+        if len(definition) == 0:
+            return []
+        res = {}
+        for k in definition.keys():
+            v = getattr(self, k, None)
+            if v:
+                res[k] = v.json_object()
+        return res
+
+class StaticVariant(Serializable, JSONSerializable, GenericType):
     # types take a list of possible types, there is no limit on it
     def __init__(self, types):
         if not all(isinstance(x, type) for x in types):
@@ -194,3 +223,5 @@ class StaticVariant(Serializable, GenericType):
         res = VarInt(self.type).pack()
         res.extend(self.data.pack())
 
+    def json_object(self):
+        return [self.type, self.data.json_object()]

@@ -2,6 +2,7 @@ import re
 from abc import ABCMeta, abstractmethod
 from struct import pack, unpack
 
+# noinspection PyProtectedMember
 from graphenebase import PublicKey as GraphenePublicKey
 
 from utils import Buffer
@@ -18,16 +19,22 @@ class Serializable(metaclass=ABCMeta):
     def pack(self):
         pass
 
+class JSONSerializable(metaclass=ABCMeta):
 
-class JsonSerializable(metaclass=ABCMeta):
+    # @staticmethod
+    # @abstractmethod
+    # def json_deserialize(msg: any):
+    #     pass
 
-    # TODO: json serialization
-    pass
-
+    # returns a object which could be put into json.dumps(), not actual json string
+    # easier to run through every member
+    @abstractmethod
+    def json_object(self):
+        pass
 
 # Basic types
 
-class VarInt(Serializable):
+class VarInt(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -63,7 +70,10 @@ class VarInt(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class String(Serializable):
+    def json_object(self):
+        return self.data
+
+class String(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not str:
             raise TypeError("Unsupported type %s, expected str" % type(data).__name__)
@@ -82,7 +92,10 @@ class String(Serializable):
     def __repr__(self):
         return self.data
 
-class Data(Serializable):
+    def json_object(self):
+        return self.data
+
+class Data(Serializable, JSONSerializable):
     # maps to c++ vector<char> as this type have special json serialization
     def __init__(self, data):
         if type(data) is bytes:
@@ -104,7 +117,10 @@ class Data(Serializable):
     def __repr__(self):
         return self.data.hex()
 
-class Bool(Serializable):
+    def json_object(self):
+        return self.data.hex()
+
+class Bool(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not bool:
             raise TypeError("Unsupported type %s, expected bool" % type(data).__name__)
@@ -120,8 +136,11 @@ class Bool(Serializable):
     def __repr__(self):
         return "True" if self.data else "False"
 
+    def json_object(self):
+        return True if self.data else False
 
-class Uint8(Serializable):
+
+class Uint8(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -139,7 +158,10 @@ class Uint8(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class Uint16(Serializable):
+    def json_object(self):
+        return self.data
+
+class Uint16(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -157,7 +179,10 @@ class Uint16(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class Uint32(Serializable):
+    def json_object(self):
+        return self.data
+
+class Uint32(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -175,7 +200,10 @@ class Uint32(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class Uint64(Serializable):
+    def json_object(self):
+        return self.data
+
+class Uint64(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -193,7 +221,10 @@ class Uint64(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class Int64(Serializable):
+    def json_object(self):
+        return self.data
+
+class Int64(Serializable, JSONSerializable):
     def __init__(self, data):
         if type(data) is not int:
             raise TypeError("Unsupported type %s, expected int" % type(data).__name__)
@@ -211,7 +242,10 @@ class Int64(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class IPAddress(Serializable):
+    def json_object(self):
+        return self.data
+
+class IPAddress(Serializable, JSONSerializable):
     # Saved as string internally
     def __init__(self, data):
         if type(data) is not str:
@@ -232,7 +266,10 @@ class IPAddress(Serializable):
     def __repr__(self):
         return self.data
 
-class IPEndpoint(Serializable):
+    def json_object(self):
+        return self.data
+
+class IPEndpoint(Serializable, JSONSerializable):
     # Saved as string internally
     def __init__(self, data):
         if type(data) is not str:
@@ -262,7 +299,10 @@ class IPEndpoint(Serializable):
     def __repr__(self):
         return self.data
 
-class FakePublicKey(Serializable):
+    def json_object(self):
+        return self.data
+
+class FakePublicKey(Serializable, JSONSerializable):
     # for node_ids which is actually random 33 bytes
     def __init__(self, data):
         if type(data) is bytes:
@@ -280,9 +320,12 @@ class FakePublicKey(Serializable):
         return bytearray(self.data)
 
     def __repr__(self):
-        return repr(self.data)
+        return self.data.hex()
 
-class PublicKey(Serializable):
+    def json_object(self):
+        return self.data.hex()
+
+class PublicKey(Serializable, JSONSerializable):
     # wraps around graphenebase pubkey
     def __init__(self, data):
         if type(data) is GraphenePublicKey:
@@ -293,7 +336,7 @@ class PublicKey(Serializable):
     @staticmethod
     def unpack(msg: Buffer):
         data = msg.read(33)
-        return PublicKey(GraphenePublicKey(data.hex()))
+        return PublicKey(GraphenePublicKey(data.hex(), prefix="BTS"))
 
     def pack(self):
         return bytearray(bytes(self.data))
@@ -301,7 +344,10 @@ class PublicKey(Serializable):
     def __repr__(self):
         return repr(self.data)
 
-class Signature(Serializable):
+    def json_object(self):
+        return str(self.data)
+
+class Signature(Serializable, JSONSerializable):
     # save as bytes
     def __init__(self, data):
         if type(data) is bytes:
@@ -321,7 +367,10 @@ class Signature(Serializable):
     def __repr__(self):
         return self.data.hex()
 
-class SHA256(Serializable):
+    def json_object(self):
+        return self.data.hex()
+
+class SHA256(Serializable, JSONSerializable):
 
     def __init__(self, data):
         if type(data) is bytes:
@@ -341,7 +390,10 @@ class SHA256(Serializable):
     def __repr__(self):
         return self.data.hex()
 
-class RIPEMD160(Serializable):
+    def json_object(self):
+        return self.data.hex()
+    
+class RIPEMD160(Serializable, JSONSerializable):
     # only used as item id and address
     def __init__(self, data):
         if type(data) is bytes:
@@ -363,7 +415,10 @@ class RIPEMD160(Serializable):
     def __repr__(self):
         return self.data.hex()
 
-class VoteID(Serializable):
+    def json_object(self):
+        return self.data.hex()
+
+class VoteID(Serializable, JSONSerializable):
 
     def __init__(self, *args):
         if len(args) == 1:
@@ -394,8 +449,11 @@ class VoteID(Serializable):
     def __repr__(self):
         return "%d:%d" % (self.type, self.instance)
 
+    def json_object(self):
+        return repr(self)
 
-class VariantObject(Serializable):
+
+class VariantObject(Serializable, JSONSerializable):
     # dict string:any, enforce string
     def __init__(self, data: dict):
         if type(data) is not dict:
@@ -413,7 +471,7 @@ class VariantObject(Serializable):
         obj = {}
         count = VarInt.unpack(msg)
         for _ in range(count):
-            key = String.unpack(msg)
+            key = String.unpack(msg).data
             index = ord(msg.read(1))
             type_ = Variant.allowed_types[index]
             value = type_.unpack(msg)
@@ -438,7 +496,10 @@ class VariantObject(Serializable):
     def __repr__(self):
         return str(self.data)
 
-class Null(Serializable):
+    def json_object(self):
+        return dict((k, v.json_object()) for k, v in self.data.items())
+
+class Null(Serializable, JSONSerializable):
 
     @staticmethod
     def unpack(_):
@@ -450,7 +511,10 @@ class Null(Serializable):
     def __repr__(self):
         return "null"
 
-class Variant(Serializable):
+    def json_object(self):
+        return None
+
+class Variant(Serializable, JSONSerializable):
 
     allowed_types = [
         Null,
@@ -484,4 +548,7 @@ class Variant(Serializable):
 
     def __repr__(self):
         return str(self.data)
+
+    def json_object(self):
+        return self.data.json_object()
 

@@ -3,10 +3,9 @@ import logging
 from abc import abstractmethod
 from collections import OrderedDict
 from hashlib import sha256
-from pprint import pformat
 from struct import unpack
 
-from graphenebase import ecdsa, PublicKey as GraphenePublicKey
+from graphenebase import ecdsa
 
 from basic_types import (
     RIPEMD160, Uint32, String, IPAddress, Uint16, Signature, SHA256, VariantObject, IPEndpoint, Uint8, Bool, Uint64,
@@ -25,6 +24,8 @@ class Message(Object):
     def message_id(self):
         pass
 
+    def __repr__(self):
+        return type(self).__name__
 
 class TrxMessage(Message):
 
@@ -32,6 +33,10 @@ class TrxMessage(Message):
     definition = {
         "trx": PrecomuutableTransaction
     }
+
+    def __repr__(self):
+        res = "Transaction, operations [%s]" % ", ".join(repr(x.data) for x in self["trx"]["operations"].data)
+        return res
 
 class BlockMessage(Message):
 
@@ -41,6 +46,14 @@ class BlockMessage(Message):
         ("block_id", ItemID)
     ])
 
+    def __repr__(self):
+        res = "Block %d, id %s, %d transactions" % (
+            unpack(">I", self["block_id"].data[:4])[0],
+            self["block_id"].data.hex(),
+            len(self["block"]["transactions"].data)
+        )
+        return res
+
 class ItemIDsInventoryMessage(Message):
 
     message_id = 5001
@@ -48,6 +61,14 @@ class ItemIDsInventoryMessage(Message):
         ("item_type", Uint32),
         ("item_hashes_available", Vector[ItemID])
     ])
+
+    def __repr__(self):
+        if self["item_type"].data == 1001:
+            return "Have %d new block" % len(self["item_hashes_available"].data)
+        elif self["item_type"].data == 1000:
+            return "Have %d new transaction" % len(self["item_hashes_available"].data)
+
+
 
 class BlockchainItemIDsInventoryMessage(Message):
 
@@ -58,6 +79,16 @@ class BlockchainItemIDsInventoryMessage(Message):
         ("item_hashes_available", Vector[ItemID])
     ])
 
+    def __repr__(self):
+        items = self["item_hashes_available"].data
+        if len(items) == 0:
+            return "Have no blocks available"
+        return "Have %d blocks, sending hashes for block %d - %d" % (
+            self["total_remaining_item_count"].data + len(items),
+            unpack(">I", items[0].data[:4])[0],
+            unpack(">I", items[-1].data[:4])[0]
+        )
+
 class FetchBlockchainItemIDsMessage(Message):
 
     message_id = 5003
@@ -66,6 +97,9 @@ class FetchBlockchainItemIDsMessage(Message):
         ("blockchain_synopsis", Vector[ItemID])
     ])
 
+    def __repr__(self):
+        return "Fetch blocks, last known block is %d" % unpack(">I", self["blockchain_synopsis"].data[0].data[:4])[0]
+
 class FetchItemsMessage(Message):
 
     message_id = 5004
@@ -73,6 +107,15 @@ class FetchItemsMessage(Message):
         ("item_type", Uint32),
         ("items_to_fetch", Vector[ItemID])
     ])
+
+    def __repr__(self):
+        if self["item_type"].data == 1001:
+            return "Fetch block %d - %d" % (
+                unpack(">I", self["items_to_fetch"].data[0].data[:4])[0],
+                unpack(">I", self["items_to_fetch"].data[-1].data[:4])[0]
+            )
+        elif self["item_type"].data == 1000:
+            return "Fetch transaction %s" % self["items_to_fetch"].data[0].data.hex()
 
 class ItemNotAvailableMessage(Message):
 
@@ -96,10 +139,24 @@ class HelloMessage(Message):
         ("user_data", VariantObject)
     ])
 
+    def __repr__(self):
+        if self["user_agent"].data == "Haruka Mock Client":
+            return "Hello from mock client"
+        res = "Hello from %s:%d running %s (%s), head block %d on %s" % (
+            self["inbound_address"].data, self["inbound_port"].data, self["user_agent"].data,
+            self["user_data"].data["fc_git_revision_sha"].data.data[:7],
+            self["user_data"].data["last_known_block_number"].data.data,
+            self["user_data"].data["last_known_block_time"].data.data
+        )
+        return res
+
 class ConnectionAcceptedMessage(Message):
 
     message_id = 5007
     definition = {}
+
+    def __repr__(self):
+        return "Connection accepted"
 
 class ConnectionRejectedMessage(Message):
 
@@ -117,12 +174,20 @@ class AddressRequestMessage(Message):
     message_id = 5009
     definition = {}
 
+    def __repr__(self):
+        return "Request node list"
+
 class AddressMessage(Message):
 
     message_id = 5010
     definition = {
         "addresses": Vector[Address]
     }
+
+    def __repr__(self):
+        res = "Known nodes: [\n  "
+        res += "\n  ".join(map(repr, self["addresses"].data))
+        return res + "\n]"
 
 class ClosingConnectionMessage(Message):
 
@@ -140,6 +205,9 @@ class CurrentTimeRequestMessage(Message):
         "request_sent_time": Uint64
     }
 
+    def __repr__(self):
+        return "Request current time"
+
 class CurrentTimeReplyMessage(Message):
 
     message_id = 5013
@@ -148,6 +216,9 @@ class CurrentTimeReplyMessage(Message):
         ("request_received_time", Uint64),
         ("reply_transmitted_time", Uint64)
     ])
+
+    def __repr__(self):
+        return "Current time is %f" % (self["reply_transmitted_time"].data / 1000000)
 
 message_name_table = {
     1000: "trx_message_type",
@@ -197,17 +268,17 @@ message_type_table = {
 
 fetch_target = None
 
-def block_respond(msg: dict, conn):
+def block_respond(msg: Message, conn):
     if msg["block_id"].data == fetch_target:
         conn.send(5003, {
             "item_type": 1001,
             "blockchain_synopsis": [fetch_target]
         })
 
-def item_id_inventory_respond(msg: dict, conn):
+def item_id_inventory_respond(msg: Message, conn):
     if msg["item_type"] == 1001:
         global fetch_target
-        fetch_target = msg["item_hashes_available"][0].data
+        fetch_target = msg["item_hashes_available"].data[0].data
         conn.send(5004, {
             "item_type": 1001,
             "items_to_fetch": [fetch_target]
@@ -215,18 +286,18 @@ def item_id_inventory_respond(msg: dict, conn):
     else:
         conn.send(5004, {
             "item_type": 1000,
-            "items_to_fetch": [msg["item_hashes_available"][0]]
+            "items_to_fetch": [msg["item_hashes_available"].data[0].data]
         })
 
-def blockchain_item_id_inventory_respond(msg: dict, conn):
+def blockchain_item_id_inventory_respond(msg: Message, conn):
     global fetch_target
-    if fetch_target == msg["item_hashes_available"][-1].data:
+    if fetch_target == msg["item_hashes_available"].data[-1].data:
         return
     conn.send(5004, {
         "item_type": 1001,
-        "items_to_fetch": msg["item_hashes_available"]
+        "items_to_fetch": msg["item_hashes_available"].data
     })
-    fetch_target = msg["item_hashes_available"][-1].data
+    fetch_target = msg["item_hashes_available"].data[-1].data
 
 def fetch_item_id_respond(_, conn):
     conn.send(5002, {
@@ -235,7 +306,7 @@ def fetch_item_id_respond(_, conn):
         "item_hashes_available": []
     })
 
-def hello_respond(msg: dict, conn):
+def hello_respond(msg: Message, conn):
     key = ecdsa.recover_public_key(
               sha256(conn.shared_secret).digest(),
               msg["signed_shared_secret"].data[1:],
@@ -258,10 +329,11 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["027644b8283a967e1e0505196a0ee449fccf5e80"]
+        "blockchain_synopsis": ["02766e4ad06543816afdd2736363b779e32ede2f"]
     })
 
-def time_request_respond(msg: dict, conn):
+
+def time_request_respond(msg: Message, conn):
     now = datetime.datetime.utcnow()
     conn.send(5013, {
         "request_sent_time": msg["request_sent_time"],
@@ -280,7 +352,7 @@ message_action_table = {
     5012: time_request_respond,
 }
 
-def parse_message(msg: bytes, conn):
+def parse_message(msg: bytes, conn, dir_):
     size = unpack("<I", msg[:4])[0]
     msg_type = unpack("<I", msg[4:8])[0]
     message_type = message_type_table[msg_type]
@@ -291,12 +363,7 @@ def parse_message(msg: bytes, conn):
     buf = Buffer()
     buf.write(msg)
     message = message_type.unpack(buf)
-    if msg_type >= 5000:
-        logging.info(pformat([message_name_table[msg_type], message]))
-    elif msg_type == 1001:
-        logging.info([message_name_table[msg_type], "Block %d %s" % (unpack("!I", message["block_id"].data[:4])[0], message["block_id"].data.hex())])
-    else:
-        logging.info(pformat([message_name_table[msg_type], "Transaction"]))
+    logging.info(("\033[36mSEND >>> \033[0m" if dir_ == 1 else "\033[32mRECV <<< \033[0m") + repr(message))
     action = message_action_table.get(msg_type, None)
     if action is not None and conn is not None:
         action(message, conn)

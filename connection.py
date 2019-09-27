@@ -6,11 +6,13 @@ from struct import pack, unpack
 
 import cityhash
 from Cryptodome.Cipher import AES
+# noinspection PyProtectedMember
 from graphenebase import PublicKey as GraphenePublicKey, PrivateKey, ecdsa
 
 from basic_types import String
 from messages import parse_message, message_type_table
 from utils import Buffer
+
 
 class Connection:
 
@@ -64,14 +66,13 @@ class Connection:
         res = pack("<II", length, msg_type) + res
         data = self.encryptor.encrypt(res)
         logging.debug("SEND >>> %s" % res)
-        logging.info("Send message")
-        parse_message(res, None)
+        parse_message(res, None, 1)
         self.s.sendall(data)
 
     def worker(self):
         data = bytearray()
         while True:
-            data.extend(self.s.recv(65536))
+            data.extend(self.s.recv(4096))
             if len(data) % 16 == 0:
                 msg = self.decryptor.decrypt(bytes(data))
             else:
@@ -86,7 +87,6 @@ class Connection:
                 expect = size + 8 + (16 - (size + 8) % 16) % 16
                 logging.debug("expect %s have %s" % (expect, self.stream.count()))
                 if expect <= self.stream.count():
-                    logging.info("Received message")
-                    parse_message(self.stream.read(expect), self)
+                    parse_message(self.stream.read(expect), self, 2)
                 else:
                     break

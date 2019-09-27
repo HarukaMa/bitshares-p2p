@@ -26,6 +26,9 @@ class Address(Object):
         ("firewalled", Uint8)
     ])
 
+    def __repr__(self):
+        return "%s%s" % (repr(self["remote_endpoint"]), ", open" if self["firewalled"].data == 2 else "")
+
 class Asset(Object):
 
     definition = OrderedDict([
