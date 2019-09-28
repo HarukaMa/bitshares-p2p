@@ -2,7 +2,8 @@
 from collections import OrderedDict
 
 from basic_types import (
-    IPEndpoint, Uint32, Int64, PublicKey, Uint8, RIPEMD160, Uint16, Uint64, Data, String, VoteID, FakePublicKey)
+    IPEndpoint, Uint32, Int64, PublicKey, Uint8, RIPEMD160, Uint16, Uint64, Data, String, VoteID, FakePublicKey, SHA256,
+    SHA1)
 from generic_types import Vector, Extension, Map, StaticVariant, Optional
 from objectids import AssetID, AccountID
 from objects import Object
@@ -187,6 +188,8 @@ Predicate = StaticVariant[
     AssetSymbolEqLitPredicate,
     BlockIDPredicate
 ]
+
+HTLCHash = StaticVariant[RIPEMD160, SHA1, SHA256]
 
 # names may be very wrong here
 

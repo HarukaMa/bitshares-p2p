@@ -72,7 +72,7 @@ class Connection:
     def worker(self):
         data = bytearray()
         while True:
-            data.extend(self.s.recv(4096))
+            data.extend(self.s.recv(65535))
             if len(data) % 16 == 0:
                 msg = self.decryptor.decrypt(bytes(data))
             else:

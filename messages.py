@@ -35,7 +35,7 @@ class TrxMessage(Message):
     }
 
     def __repr__(self):
-        res = "Transaction, operations [%s]" % ", ".join(repr(x.data) for x in self["trx"]["operations"].data)
+        res = "Transaction, operations [ %s ]" % ", ".join(repr(x.data) for x in self["trx"]["operations"].data)
         return res
 
 class BlockMessage(Message):
@@ -329,7 +329,7 @@ def address_respond(_, conn):
     })
     conn.send(5003, {
         "item_type": 1001,
-        "blockchain_synopsis": ["02766e4ad06543816afdd2736363b779e32ede2f"]
+        "blockchain_synopsis": ["02773f092a07e75c930921dc20e8edc7ab85b887"]
     })
 
 

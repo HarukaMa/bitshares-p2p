@@ -370,6 +370,29 @@ class Signature(Serializable, JSONSerializable):
     def json_object(self):
         return self.data.hex()
 
+class SHA1(Serializable, JSONSerializable):
+
+    def __init__(self, data):
+        if type(data) is bytes:
+            self.data = data
+        elif type(data) is bytearray:
+            self.data = bytes(data)
+        else:
+            raise TypeError("Unsupported type %s, expected bytes-like object" % type(data).__name__)
+
+    @staticmethod
+    def unpack(msg: Buffer):
+        return SHA1(msg.read(20))
+
+    def pack(self):
+        return self.data
+
+    def __repr__(self):
+        return self.data.hex()
+
+    def json_object(self):
+        return self.data.hex()
+
 class SHA256(Serializable, JSONSerializable):
 
     def __init__(self, data):

@@ -111,6 +111,16 @@ class WorkerID(ObjectID, FullObjectID):
     space = 1
     type = 14
 
+class BalanceID(ObjectID, FullObjectID):
+
+    space = 1
+    type = 15
+
+class HTLCID(ObjectID, FullObjectID):
+
+    space = 1
+    type = 16
+
 FullObjectID.oid_types = {
     2: AccountID,
     3: AssetID,
@@ -125,4 +135,6 @@ FullObjectID.oid_types = {
     12: WithdrawPermissionID,
     13: VestingBalanceID,
     14: WorkerID,
+    15: BalanceID,
+    16: HTLCID
 }

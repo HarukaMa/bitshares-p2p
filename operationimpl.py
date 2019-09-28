@@ -5,10 +5,10 @@ from basic_types import Uint16, Uint32, Signature, Null, RIPEMD160, VariantObjec
     PublicKey, Data, SHA256
 from generic_types import Optional, Extension, StaticVariant, Vector
 from objectids import AccountID, FullObjectID, WitnessID, LimitOrderID, AssetID, ProposalID, VestingBalanceID, \
-    WithdrawPermissionID, CommitteeMemberID
+    WithdrawPermissionID, CommitteeMemberID, HTLCID
 from objectimpl import Asset, Memo, EmptyExtension, CallOrderOptions, Authority, AccountOptions, AssetOptions, \
     BitAssetOptions, PriceFeed, LinearVesting, CDDVesting, InstantVesting, Price, WorkerInitializer, \
-    Predicate, BlindInput, BlindOutput
+    Predicate, BlindInput, BlindOutput, HTLCHash
 from objects import Object
 from operations import Operation
 
@@ -516,7 +516,43 @@ class AssetUpdateIssuerOperation(Operation):
         ("new_issuer", AccountID),
         ("extensions", Extension[EmptyExtension])
     ])
-    
+
+class HTLCCreateOperation(Operation):
+
+    opid = 49
+    definition = OrderedDict([
+        ("fee", Asset),
+        ("from", AccountID),
+        ("to", AccountID),
+        ("amount", Asset),
+        ("preimage_hash", HTLCHash),
+        ("preimage_size", Uint16),
+        ("claim_period_seconds", Uint32),
+        ("extensions", Extension[EmptyExtension])
+    ])
+
+class HTLCRedeemOperation(Operation):
+
+    opid = 50
+    definition = OrderedDict([
+        ("fee", Asset),
+        ("htlc_id", HTLCID),
+        ("redeemer", AccountID),
+        ("preimage", Data),
+        ("extensions", Extension[EmptyExtension])
+    ])
+
+class HTLCExtendOperation(Operation):
+
+    opid = 52
+    definition = OrderedDict([
+        ("fee", Asset),
+        ("htlc_id", HTLCID),
+        ("update_issuer", AccountID),
+        ("seconds_to_add", Uint32),
+        ("extensions", Extension[EmptyExtension])
+    ])
+
     
 OperationVariant = StaticVariant[
     TransferOperation,                  # 0
@@ -568,10 +604,10 @@ OperationVariant = StaticVariant[
     type(None),
     AssetClaimPoolOperation,
     AssetUpdateIssuerOperation,
+    HTLCCreateOperation,
+    HTLCRedeemOperation,                # 50
     type(None),
-    type(None),
-    type(None),
-    type(None),
+    HTLCExtendOperation,                # 52
     type(None)
 ]
 
